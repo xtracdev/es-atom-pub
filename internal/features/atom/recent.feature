@@ -1,0 +1,16 @@
+Feature: Read recent events
+  Scenario:
+    Given some events not yet assigned to a feed
+    And no feeds exist
+    When I retrieve the recent resource
+    Then the events not yet assigned to a feed are returned
+    And there is no previous link relationship
+    And there is no next link relationship
+
+  Scenario:
+    Given some events not yet assigned to a feed
+    And previous feeds exist
+    When I retrieve the recent resource
+    Then the events not yet assigned to a feed are returned
+    And the previous link relationship refers to the most recently created feed
+    And there is no next link relationship
