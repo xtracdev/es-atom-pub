@@ -5,6 +5,7 @@ Feature: Read events for a specific feed
     Then all the events associated with the feed are returned
     And there is no previous feed link relationship
     And the next link relationship is recent
+    And cache headers indicate the resource is cacheable
 
   Scenario:
     Given a feed with prior and next feeds
@@ -12,3 +13,4 @@ Feature: Read events for a specific feed
     Then all the events associated with the feed are returned
     And the previous link relationship refers to the previous feed
     And the next link relationship refers to the next feed
+    And cache headers indicate the resource is cacheable
