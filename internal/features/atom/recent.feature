@@ -1,3 +1,4 @@
+@recentevents
 Feature: Read recent events
   Scenario:
     Given some events not yet assigned to a feed
