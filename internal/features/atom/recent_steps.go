@@ -1,13 +1,17 @@
 package atom
 
 import (
-	. "github.com/gucumber/gucumber"
 	log "github.com/Sirupsen/logrus"
+	. "github.com/gucumber/gucumber"
 	"github.com/stretchr/testify/assert"
-	"github.com/xtracdev/orapub"
-	"os"
-	ad "github.com/xtracdev/es-atom-data"
+	atomdata "github.com/xtracdev/es-atom-data"
+	atompub "github.com/xtracdev/es-atom-pub"
 	"github.com/xtracdev/goes"
+	"github.com/xtracdev/orapub"
+	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
+	"os"
 )
 
 func init() {
@@ -21,6 +25,7 @@ func init() {
 		initFailed = true
 	}
 
+	var feedData []byte
 
 	Given(`^some events not yet assigned to a feed$`, func() {
 		log.Info("check init")
@@ -29,7 +34,7 @@ func init() {
 			return
 		}
 
-		atomProcessor = ad.NewESAtomPubProcessor()
+		atomProcessor = atomdata.NewESAtomPubProcessor()
 		err := atomProcessor.Initialize(db)
 		assert.Nil(T, err, "Failed to initialize atom publisher")
 
@@ -40,8 +45,8 @@ func init() {
 		assert.Nil(T, err)
 
 		os.Setenv("FEED_THRESHOLD", "2")
-		ad.ReadFeedThresholdFromEnv()
-		assert.Equal(T, 2, ad.FeedThreshold)
+		atomdata.ReadFeedThresholdFromEnv()
+		assert.Equal(T, 2, atomdata.FeedThreshold)
 
 		log.Info("add some events")
 		eventPtr := &goes.Event{
@@ -58,4 +63,28 @@ func init() {
 	And(`^no feeds exist$`, func() {
 		//Get this for free given one event created above
 	})
+
+	When(`^I retrieve the recent resource$`, func() {
+		//Create a test server
+		recentHandler, err := atompub.NewRecentHandler(db, "server:12345")
+		if !assert.Nil(T, err) {
+			return
+		}
+
+		ts := httptest.NewServer(http.HandlerFunc(recentHandler))
+		defer ts.Close()
+
+		res, err := http.Get(ts.URL)
+		if !assert.Nil(T, err) {
+			return
+		}
+
+		var readErr error
+		feedData, readErr = ioutil.ReadAll(res.Body)
+		res.Body.Close()
+		assert.Nil(T, readErr)
+
+		assert.True(T, len(feedData) > 0, "Empty feed data returned unexpectedly")
+	})
+
 }
