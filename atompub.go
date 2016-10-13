@@ -89,8 +89,6 @@ func NewRecentHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWri
 			Rel:  "related",
 		}
 
-
-
 		feed.Link = append(feed.Link, self)
 		feed.Link = append(feed.Link, via)
 
@@ -101,7 +99,6 @@ func NewRecentHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWri
 			}
 			feed.Link = append(feed.Link, previous)
 		}
-
 
 		err = addItemsToFeed(&feed, events, latestFeed)
 		if err != nil {
