@@ -12,6 +12,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"golang.org/x/tools/blog/atom"
+	"encoding/xml"
+	"fmt"
+	"encoding/base64"
+	"time"
 )
 
 func init() {
@@ -26,6 +31,9 @@ func init() {
 	}
 
 	var feedData []byte
+	var feed atom.Feed
+	var cacheControl string
+
 
 	Given(`^some events not yet assigned to a feed$`, func() {
 		log.Info("check init")
@@ -82,9 +90,36 @@ func init() {
 		var readErr error
 		feedData, readErr = ioutil.ReadAll(res.Body)
 		res.Body.Close()
+		cacheControl = res.Header.Get("Cache-Control")
 		assert.Nil(T, readErr)
 
 		assert.True(T, len(feedData) > 0, "Empty feed data returned unexpectedly")
+
+		err = xml.Unmarshal(feedData,&feed)
+		assert.Nil(T,err)
 	})
 
+	Then(`^the events not yet assigned to a feed are returned$`, func() {
+		if assert.Equal(T, len(feed.Entry), 1) {
+			feedEntry := feed.Entry[0]
+			assert.Equal(T, "event", feedEntry.Title)
+			assert.Equal(T, fmt.Sprintf("urn:esid:%s:%d", "agg1", 1),feedEntry.ID)
+			assert.Equal(T, "foo", feedEntry.Content.Type)
+			assert.Equal(T, base64.StdEncoding.EncodeToString([]byte("ok")), feedEntry.Content.Body)
+			_,err = time.Parse(time.RFC3339Nano, string(feedEntry.Published))
+			assert.Nil(T,err)
+		}
+	})
+
+	And(`^there is no previous link relationship$`, func() {
+		assert.Nil(T, getLink("prev-archive", &feed))
+	})
+
+	And(`^there is no next link relationship$`, func() {
+		assert.Nil(T, getLink("next-archive", &feed))
+	})
+
+	And(`^cache headers indicate the resource is not cacheable$`, func() {
+		assert.Equal(T, cacheControl, "no-store")
+	})
 }

@@ -89,14 +89,19 @@ func NewRecentHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWri
 			Rel:  "related",
 		}
 
-		previous := atom.Link{
-			Href: fmt.Sprintf("http://%s/notifications/%s", linkhostport, latestFeed),
-			Rel:  "prev-archive",
-		}
+
 
 		feed.Link = append(feed.Link, self)
 		feed.Link = append(feed.Link, via)
-		feed.Link = append(feed.Link, previous)
+
+		if latestFeed != "" {
+			previous := atom.Link{
+				Href: fmt.Sprintf("http://%s/notifications/%s", linkhostport, latestFeed),
+				Rel:  "prev-archive",
+			}
+			feed.Link = append(feed.Link, previous)
+		}
+
 
 		err = addItemsToFeed(&feed, events, latestFeed)
 		if err != nil {
