@@ -1,3 +1,4 @@
+@assigned
 Feature: Read events for a specific feed
   Scenario:
     Given a single feed with events assigned to it
