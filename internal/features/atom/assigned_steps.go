@@ -247,4 +247,15 @@ func init() {
 
 		}
 	})
+
+	And(`^the next link relationship refers to the next feed$`, func() {
+		nextfeed, err := atomdata.RetrieveNextFeed(db, feedID)
+		if assert.Nil(T,err) && assert.True(T, nextfeed.Valid) {
+			next := getLink("next-archive",&feed)
+			if assert.NotNil(T, next) {
+				assert.Equal(T, fmt.Sprintf("http://server:12345/notifications/%s", nextfeed.String), *next)
+			}
+
+		}
+	})
 }
