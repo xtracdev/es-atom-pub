@@ -12,10 +12,20 @@ import (
 	"golang.org/x/tools/blog/atom"
 	"net/http"
 	"time"
+	"strconv"
 )
 
 var ErrBadDBConnection = errors.New("Nil db passed to factory method")
 var ErrBytePayloadsOnly = errors.New("Only []byte payloads are supported for atom feed")
+
+type EventStoreContent struct {
+	XMLName     xml.Name  `xml:"http://github.com/xtracdev/goes event"`
+	AggregateId string    `xml:"aggregateId"`
+	Version     int       `xml:"version"`
+	Published   time.Time `xml:"published"`
+	TypeCode    string    `xml:"typecode"`
+	Content     string    `xml:"content"`
+}
 
 func addItemsToFeed(feed *atom.Feed, events []atomdata.TimestampedEvent, linkhostport string) error {
 
@@ -210,4 +220,57 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 		rw.Write(out)
 
 	}, nil
+}
+
+func NewEventRetrieveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWriter, req *http.Request), error) {
+	if db == nil {
+		return nil, ErrBadDBConnection
+	}
+
+	return func(rw http.ResponseWriter, req *http.Request) {
+		aggregateId := mux.Vars(req)["aggregate_id"]
+		versionParam := mux.Vars(req)["version"]
+
+		log.Infof("Retrieving event %s %s", aggregateId, versionParam)
+
+		version, err := strconv.Atoi(versionParam)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		event, err := atomdata.RetrieveEvent(db,aggregateId,version)
+		if err != nil {
+			switch err {
+			case sql.ErrNoRows:
+				http.Error(rw,"", http.StatusNotFound)
+			default:
+				log.Warnf("Error retrieving event: %s", err.Error())
+			}
+
+			return
+		}
+
+		eventContent := EventStoreContent{
+			AggregateId: aggregateId,
+			Version:     version,
+			TypeCode:    event.TypeCode,
+			Published:   event.Timestamp,
+			Content:     base64.StdEncoding.EncodeToString(event.Payload.([]byte)),
+		}
+
+
+		marshalled, err := xml.Marshal(&eventContent)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		rw.Header().Add("Content-Type", "application/xml")
+		rw.Header().Add("ETag", fmt.Sprintf("%s:%d", aggregateId, version))
+		rw.Header().Add("Cache-Control", "max-age=2592000")
+
+		rw.Write(marshalled)
+
+	},nil
 }

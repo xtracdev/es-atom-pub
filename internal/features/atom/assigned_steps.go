@@ -17,16 +17,18 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"encoding/base64"
 )
 
 func init() {
 	var initFailed bool
 	var atomProcessor orapub.EventProcessor
-	var feedData []byte
+	var feedData, eventData []byte
 	var feedID string
 	var feed atom.Feed
 	var cacheControl string
 	var etag string
+	var eventID string
 
 	log.Info("Init test envionment")
 	_, db, err := initializeEnvironment()
@@ -234,6 +236,7 @@ func init() {
 			log.Infof("got %v", feed.Entry)
 			assert.Equal(T, fmt.Sprintf("urn:esid:%s:%d", "agg3", 1), feed.Entry[0].ID)
 			assert.Equal(T, fmt.Sprintf("urn:esid:%s:%d", "agg4", 1), feed.Entry[1].ID)
+			assert.Equal(T, base64.StdEncoding.EncodeToString([]byte("ok")), feed.Entry[0].Content.Body)
 		}
 	})
 
@@ -258,4 +261,64 @@ func init() {
 
 		}
 	})
+
+	Given(`^an event id exposed via a feed$`, func() {
+		if assert.True(T, len(feed.Entry) > 0) {
+			eventID = feed.Entry[0].ID
+		}
+	})
+
+	When(`^I retrieve the event by its id$`, func() {
+		var err error
+
+		eventHandler, err := atompub.NewEventRetrieveHandler(db, "server:12345")
+		if !assert.Nil(T, err) {
+			return
+		}
+
+		eventIDParts := strings.Split(eventID,":")
+
+		router := mux.NewRouter()
+		router.HandleFunc("/notifications/{aggregate_id}/{version}", eventHandler)
+
+		eventResource := fmt.Sprintf("/notifications/%s/%s", eventIDParts[2], eventIDParts[3])
+		log.Infof("Retrieve event via %s", eventResource)
+		r, err := http.NewRequest("GET", eventResource, nil)
+		assert.Nil(T, err)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, r)
+		assert.Equal(T, http.StatusOK, w.Result().StatusCode)
+
+		cacheControl = w.Header().Get("Cache-Control")
+		etag = w.Header().Get("ETag")
+
+		var readErr error
+		eventData, readErr = ioutil.ReadAll(w.Body)
+		assert.Nil(T, readErr)
+
+		assert.True(T, len(eventData) > 0, "Empty feed data returned unexpectedly")
+	})
+
+	Then(`^the event detail is returned$`, func() {
+		var event atompub.EventStoreContent
+		err := xml.Unmarshal(eventData,&event)
+		if assert.Nil(T, err) {
+			log.Infof("%+v", event)
+			assert.Equal(T, base64.StdEncoding.EncodeToString([]byte("ok")), event.Content)
+		}
+	})
+
+	And(`^cache headers for the event indicate the resource is cacheable$`, func() {
+		if assert.True(T, cacheControl != "") {
+			cc := strings.Split(cacheControl, "=")
+			if assert.Equal(T, 2, len(cc)) {
+				assert.Equal(T, "max-age", cc[0])
+				assert.Equal(T, fmt.Sprintf("%d", 30*24*60*60), cc[1])
+			}
+		}
+
+		assert.Equal(T, "agg3:1", etag)
+	})
+
 }
