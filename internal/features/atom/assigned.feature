@@ -9,9 +9,9 @@ Feature: Read events for a specific feed
     And cache headers indicate the resource is cacheable
 
   Scenario:
-    Given a feed with prior and next feeds
-    When I do a get on the feed resource id
-    Then all the events associated with the feed are returned
+    Given feedX with prior and next feeds
+    When I do a get on the feedX resource id
+    Then all the events associated with the updated feed are returned
     And the previous link relationship refers to the previous feed
     And the next link relationship refers to the next feed
     And cache headers indicate the resource is cacheable

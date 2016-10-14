@@ -142,4 +142,109 @@ func init() {
 
 		assert.Equal(T, feedID, etag)
 	})
+
+	Given(`^feedX with prior and next feeds$`, func() {
+		log.Info("add 2 more events")
+		eventPtr := &goes.Event{
+			Source:   "agg3",
+			Version:  1,
+			TypeCode: "foo",
+			Payload:  []byte("ok"),
+		}
+
+		err = atomProcessor.Processor(db, eventPtr)
+		assert.Nil(T, err)
+
+		eventPtr = &goes.Event{
+			Source:   "agg4",
+			Version:  1,
+			TypeCode: "bar",
+			Payload:  []byte("ok ok"),
+		}
+
+		err = atomProcessor.Processor(db, eventPtr)
+		assert.Nil(T, err)
+
+		lastFeed, err := atomdata.RetrieveLastFeed(db)
+		assert.Nil(T,err)
+
+		prevOfLast, err := atomdata.RetrievePreviousFeed(db, lastFeed)
+		assert.Nil(T,err)
+
+		assert.Equal(T,feedID, prevOfLast.String)
+
+		log.Info("add 2 more events")
+		eventPtr = &goes.Event{
+			Source:   "agg5",
+			Version:  1,
+			TypeCode: "foo",
+			Payload:  []byte("ok"),
+		}
+
+		err = atomProcessor.Processor(db, eventPtr)
+		assert.Nil(T, err)
+
+		eventPtr = &goes.Event{
+			Source:   "agg6",
+			Version:  1,
+			TypeCode: "bar",
+			Payload:  []byte("ok ok"),
+		}
+
+		err = atomProcessor.Processor(db, eventPtr)
+		assert.Nil(T, err)
+
+		//After this update latest feed will have assigned feed ids for both next
+		//and prev. We'll update feed id to this
+		feedID = lastFeed
+	})
+
+	When(`^I do a get on the feedX resource id$`, func() {
+		var err error
+
+		archiveHandler, err := atompub.NewArchiveHandler(db, "server:12345")
+		if !assert.Nil(T, err) {
+			return
+		}
+
+		router := mux.NewRouter()
+		router.HandleFunc("/notifications/{feedid}", archiveHandler)
+
+		r, err := http.NewRequest("GET", fmt.Sprintf("/notifications/%s", feedID), nil)
+		assert.Nil(T, err)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, r)
+		assert.Equal(T, http.StatusOK, w.Result().StatusCode)
+
+		cacheControl = w.Header().Get("Cache-Control")
+		etag = w.Header().Get("ETag")
+
+		var readErr error
+		feedData, readErr = ioutil.ReadAll(w.Body)
+		assert.Nil(T, readErr)
+
+		assert.True(T, len(feedData) > 0, "Empty feed data returned unexpectedly")
+	})
+
+	Then(`^all the events associated with the updated feed are returned$`, func() {
+		feed = atom.Feed{}
+		err = xml.Unmarshal(feedData, &feed)
+		if assert.Nil(T, err) && assert.Equal(T, 2, len(feed.Entry), "Should be 2 events in the current feed") {
+			log.Infof("got %v", feed.Entry)
+			assert.Equal(T, fmt.Sprintf("urn:esid:%s:%d", "agg3", 1), feed.Entry[0].ID)
+			assert.Equal(T, fmt.Sprintf("urn:esid:%s:%d", "agg4", 1), feed.Entry[1].ID)
+		}
+	})
+
+	And(`^the previous link relationship refers to the previous feed$`, func() {
+		prevfeed, err := atomdata.RetrievePreviousFeed(db, feedID)
+		if assert.Nil(T,err) && assert.True(T, prevfeed.Valid) {
+			prev := getLink("prev-archive",&feed)
+			if assert.NotNil(T, prev) {
+				assert.Equal(T, fmt.Sprintf("http://server:12345/notifications/%s", prevfeed.String), *prev)
+			}
+
+		}
+	})
 }
