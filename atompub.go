@@ -183,7 +183,7 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 		}
 
 		feed.Link = append(feed.Link, atom.Link{
-			Href: fmt.Sprintf("http://%s/notifications/%s", linkhostport, previousFeed.String),
+			Href: fmt.Sprintf("http://%s/notifications/%s", linkhostport, next),
 			Rel:  "next-archive",
 		})
 

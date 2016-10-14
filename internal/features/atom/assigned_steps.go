@@ -110,4 +110,16 @@ func init() {
 		}
 
 	})
+
+	And(`^there is no previous feed link relationship$`, func() {
+		prev := getLink("prev-archive", &feed)
+		assert.Nil(T,prev)
+	})
+
+	And(`^the next link relationship is recent$`, func() {
+		next := getLink("next-archive", &feed)
+		if assert.NotNil(T,next) {
+			assert.Equal(T, "http://server:12345/notifications/recent", *next)
+		}
+	})
 }
