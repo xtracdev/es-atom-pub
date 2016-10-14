@@ -1,28 +1,32 @@
 package atom
 
 import (
-	. "github.com/gucumber/gucumber"
-	"github.com/xtracdev/orapub"
+	"encoding/xml"
+	"fmt"
 	log "github.com/Sirupsen/logrus"
+	"github.com/gorilla/mux"
+	. "github.com/gucumber/gucumber"
 	"github.com/stretchr/testify/assert"
 	atomdata "github.com/xtracdev/es-atom-data"
 	atompub "github.com/xtracdev/es-atom-pub"
-	"os"
 	"github.com/xtracdev/goes"
-	"net/http/httptest"
-	"net/http"
-	"github.com/gorilla/mux"
-	"fmt"
-	"encoding/xml"
+	"github.com/xtracdev/orapub"
 	"golang.org/x/tools/blog/atom"
 	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"strings"
 )
 
 func init() {
 	var initFailed bool
 	var atomProcessor orapub.EventProcessor
 	var feedData []byte
+	var feedID string
 	var feed atom.Feed
+	var cacheControl string
+	var etag string
 
 	log.Info("Init test envionment")
 	_, db, err := initializeEnvironment()
@@ -76,9 +80,10 @@ func init() {
 	})
 
 	When(`^I do a get on the feed resource id$`, func() {
-		feedid,err := atomdata.RetrieveLastFeed(db)
-		assert.Nil(T,err)
-		log.Infof("get feed it %s",feedid)
+		var err error
+		feedID, err = atomdata.RetrieveLastFeed(db)
+		assert.Nil(T, err)
+		log.Infof("get feed it %s", feedID)
 
 		archiveHandler, err := atompub.NewArchiveHandler(db, "server:12345")
 		if !assert.Nil(T, err) {
@@ -88,12 +93,15 @@ func init() {
 		router := mux.NewRouter()
 		router.HandleFunc("/notifications/{feedid}", archiveHandler)
 
-		r,err := http.NewRequest("GET", fmt.Sprintf("/notifications/%s", feedid), nil)
-		assert.Nil(T,err)
+		r, err := http.NewRequest("GET", fmt.Sprintf("/notifications/%s", feedID), nil)
+		assert.Nil(T, err)
 		w := httptest.NewRecorder()
 
-		router.ServeHTTP(w,r)
-		assert.Equal(T, http.StatusOK,w.Result().StatusCode)
+		router.ServeHTTP(w, r)
+		assert.Equal(T, http.StatusOK, w.Result().StatusCode)
+
+		cacheControl = w.Header().Get("Cache-Control")
+		etag = w.Header().Get("ETag")
 
 		var readErr error
 		feedData, readErr = ioutil.ReadAll(w.Body)
@@ -113,13 +121,25 @@ func init() {
 
 	And(`^there is no previous feed link relationship$`, func() {
 		prev := getLink("prev-archive", &feed)
-		assert.Nil(T,prev)
+		assert.Nil(T, prev)
 	})
 
 	And(`^the next link relationship is recent$`, func() {
 		next := getLink("next-archive", &feed)
-		if assert.NotNil(T,next) {
+		if assert.NotNil(T, next) {
 			assert.Equal(T, "http://server:12345/notifications/recent", *next)
 		}
+	})
+
+	And(`^cache headers indicate the resource is cacheable$`, func() {
+		if assert.True(T, cacheControl != "") {
+			cc := strings.Split(cacheControl, "=")
+			if assert.Equal(T, 2, len(cc)) {
+				assert.Equal(T, "max-age", cc[0])
+				assert.Equal(T, fmt.Sprintf("%d", 30*24*60*60), cc[1])
+			}
+		}
+
+		assert.Equal(T, feedID, etag)
 	})
 }

@@ -7,11 +7,11 @@ import (
 	"errors"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
+	"github.com/gorilla/mux"
 	atomdata "github.com/xtracdev/es-atom-data"
 	"golang.org/x/tools/blog/atom"
 	"net/http"
 	"time"
-	"github.com/gorilla/mux"
 )
 
 var ErrBadDBConnection = errors.New("Nil db passed to factory method")
@@ -157,8 +157,8 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 		}
 
 		feed := atom.Feed{
-			Title:   "Event store feed",
-			ID:      feedid,
+			Title: "Event store feed",
+			ID:    feedid,
 		}
 
 		self := atom.Link{
@@ -187,7 +187,7 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 			Rel:  "next-archive",
 		})
 
-		addItemsToFeed(&feed,latestFeed, linkhostport)
+		addItemsToFeed(&feed, latestFeed, linkhostport)
 
 		out, err := xml.Marshal(&feed)
 		if err != nil {
@@ -198,7 +198,7 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 		//For all feeds except recent, we can indicate the page can be cached for a long time,
 		//e.g. 30 days. The recent page is mutable so we don't indicate caching for it. We could
 		//potentially attempt to load it from this method via link traversal.
-		if next != "recent" {
+		if feedid != "recent" {
 			log.Infof("setting Cache-Control max-age=2592000 for ETag %s", feedid)
 			rw.Header().Add("Cache-Control", "max-age=2592000") //Contents are immutable, cache for a month
 			rw.Header().Add("ETag", feedid)
@@ -208,7 +208,6 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 
 		rw.Header().Add("Content-Type", "application/atom+xml")
 		rw.Write(out)
-
 
 	}, nil
 }

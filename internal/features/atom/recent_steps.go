@@ -191,9 +191,4 @@ func init() {
 	And(`^the previous link relationship refers to the most recently created feed$`, func() {
 		assert.NotNil(T, getLink("prev-archive", &feed))
 	})
-
-	//And(`^there is no next link relationship$`, func() {
-	//	assert.Nil(T, getLink("next-archive", &feed))
-	//})
-
 }
