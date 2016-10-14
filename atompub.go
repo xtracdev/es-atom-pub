@@ -11,6 +11,7 @@ import (
 	"golang.org/x/tools/blog/atom"
 	"net/http"
 	"time"
+	"github.com/gorilla/mux"
 )
 
 var ErrBadDBConnection = errors.New("Nil db passed to factory method")
@@ -117,5 +118,97 @@ func NewRecentHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWri
 		rw.Header().Add("Cache-Control", "no-store")
 		rw.Header().Add("Content-Type", "application/atom+xml")
 		rw.Write(out)
+	}, nil
+}
+
+func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWriter, req *http.Request), error) {
+	if db == nil {
+		return nil, ErrBadDBConnection
+	}
+
+	return func(rw http.ResponseWriter, req *http.Request) {
+		feedid := mux.Vars(req)["feedid"]
+		if feedid == "" {
+			http.Error(rw, "No feed id in uri", http.StatusInternalServerError)
+			return
+		}
+
+		log.Infof("processing request for feed %s", feedid)
+
+		latestFeed, err := atomdata.RetrieveArchive(db, feedid)
+		if err != nil {
+			log.Warnf("Error retrieving last feed id", err.Error())
+			http.Error(rw, "Error retrieving feed id", http.StatusInternalServerError)
+			return
+		}
+
+		previousFeed, err := atomdata.RetrievePreviousFeed(db, feedid)
+		if err != nil {
+			log.Warnf("Error retrieving previous feed id", err.Error())
+			http.Error(rw, "Error retrieving previous feed id", http.StatusInternalServerError)
+			return
+		}
+
+		nextFeed, err := atomdata.RetrieveNextFeed(db, feedid)
+		if err != nil {
+			log.Warnf("Error retrieving next feed id", err.Error())
+			http.Error(rw, "Error retrieving next feed id", http.StatusInternalServerError)
+			return
+		}
+
+		feed := atom.Feed{
+			Title:   "Event store feed",
+			ID:      feedid,
+		}
+
+		self := atom.Link{
+			Href: fmt.Sprintf("http://%s/notifications/%s", linkhostport, feedid),
+			Rel:  "self",
+		}
+
+		feed.Link = append(feed.Link, self)
+
+		if previousFeed.Valid {
+			feed.Link = append(feed.Link, atom.Link{
+				Href: fmt.Sprintf("http://%s/notifications/%s", linkhostport, previousFeed.String),
+				Rel:  "prev-archive",
+			})
+		}
+
+		var next string
+		if (nextFeed.Valid == true && nextFeed.String == "") || !nextFeed.Valid {
+			next = "recent"
+		} else {
+			next = nextFeed.String
+		}
+
+		feed.Link = append(feed.Link, atom.Link{
+			Href: fmt.Sprintf("http://%s/notifications/%s", linkhostport, previousFeed.String),
+			Rel:  "next-archive",
+		})
+
+		addItemsToFeed(&feed,latestFeed, linkhostport)
+
+		out, err := xml.Marshal(&feed)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		//For all feeds except recent, we can indicate the page can be cached for a long time,
+		//e.g. 30 days. The recent page is mutable so we don't indicate caching for it. We could
+		//potentially attempt to load it from this method via link traversal.
+		if next != "recent" {
+			log.Infof("setting Cache-Control max-age=2592000 for ETag %s", feedid)
+			rw.Header().Add("Cache-Control", "max-age=2592000") //Contents are immutable, cache for a month
+			rw.Header().Add("ETag", feedid)
+		} else {
+			rw.Header().Add("Cache-Control", "no-store")
+		}
+
+		rw.Header().Add("Content-Type", "application/atom+xml")
+		rw.Write(out)
+
+
 	}, nil
 }

@@ -6,13 +6,23 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	atomdata "github.com/xtracdev/es-atom-data"
+	atompub "github.com/xtracdev/es-atom-pub"
 	"os"
 	"github.com/xtracdev/goes"
+	"net/http/httptest"
+	"net/http"
+	"github.com/gorilla/mux"
+	"fmt"
+	"encoding/xml"
+	"golang.org/x/tools/blog/atom"
+	"io/ioutil"
 )
 
 func init() {
 	var initFailed bool
 	var atomProcessor orapub.EventProcessor
+	var feedData []byte
+	var feed atom.Feed
 
 	log.Info("Init test envionment")
 	_, db, err := initializeEnvironment()
@@ -69,5 +79,35 @@ func init() {
 		feedid,err := atomdata.RetrieveLastFeed(db)
 		assert.Nil(T,err)
 		log.Infof("get feed it %s",feedid)
+
+		archiveHandler, err := atompub.NewArchiveHandler(db, "server:12345")
+		if !assert.Nil(T, err) {
+			return
+		}
+
+		router := mux.NewRouter()
+		router.HandleFunc("/notifications/{feedid}", archiveHandler)
+
+		r,err := http.NewRequest("GET", fmt.Sprintf("/notifications/%s", feedid), nil)
+		assert.Nil(T,err)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w,r)
+		assert.Equal(T, http.StatusOK,w.Result().StatusCode)
+
+		var readErr error
+		feedData, readErr = ioutil.ReadAll(w.Body)
+		assert.Nil(T, readErr)
+
+		assert.True(T, len(feedData) > 0, "Empty feed data returned unexpectedly")
+
+	})
+
+	Then(`^all the events associated with the feed are returned$`, func() {
+		err = xml.Unmarshal(feedData, &feed)
+		if assert.Nil(T, err) {
+			assert.Equal(T, 2, len(feed.Entry))
+		}
+
 	})
 }
