@@ -67,3 +67,33 @@ func TestRetrieveEvent(t *testing.T) {
 	assert.Equal(t, "application/xml", w.Header().Get("Content-Type"))
 
 }
+
+func TestRetrieveEventParamValidation(t *testing.T) {
+
+	//Can't instantiated without a database DB instance
+	_,err := NewEventRetrieveHandler(nil, "x")
+	if assert.NotNil(t, err) {
+		assert.Equal(t, ErrBadDBConnection, err)
+	}
+
+	//Should get an error with invalid version
+	db, _, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+	}
+
+	eventHandler,err := NewEventRetrieveHandler(db, "x")
+	assert.Nil(t,err)
+
+	router := mux.NewRouter()
+	router.HandleFunc("/notifications/{aggregate_id}/{version}", eventHandler)
+
+	r, err := http.NewRequest("GET", "/notifications/1234567/foobar", nil)
+	assert.Nil(t, err)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusBadRequest, w.Result().StatusCode)
+
+}
