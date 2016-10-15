@@ -1,6 +1,7 @@
 package atom
 
 import (
+	"encoding/base64"
 	"encoding/xml"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
@@ -17,7 +18,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
-	"encoding/base64"
 )
 
 func init() {
@@ -168,12 +168,12 @@ func init() {
 		assert.Nil(T, err)
 
 		lastFeed, err := atomdata.RetrieveLastFeed(db)
-		assert.Nil(T,err)
+		assert.Nil(T, err)
 
 		prevOfLast, err := atomdata.RetrievePreviousFeed(db, lastFeed)
-		assert.Nil(T,err)
+		assert.Nil(T, err)
 
-		assert.Equal(T,feedID, prevOfLast.String)
+		assert.Equal(T, feedID, prevOfLast.String)
 
 		log.Info("add 2 more events")
 		eventPtr = &goes.Event{
@@ -242,8 +242,8 @@ func init() {
 
 	And(`^the previous link relationship refers to the previous feed$`, func() {
 		prevfeed, err := atomdata.RetrievePreviousFeed(db, feedID)
-		if assert.Nil(T,err) && assert.True(T, prevfeed.Valid) {
-			prev := getLink("prev-archive",&feed)
+		if assert.Nil(T, err) && assert.True(T, prevfeed.Valid) {
+			prev := getLink("prev-archive", &feed)
 			if assert.NotNil(T, prev) {
 				assert.Equal(T, fmt.Sprintf("http://server:12345/notifications/%s", prevfeed.String), *prev)
 			}
@@ -253,8 +253,8 @@ func init() {
 
 	And(`^the next link relationship refers to the next feed$`, func() {
 		nextfeed, err := atomdata.RetrieveNextFeed(db, feedID)
-		if assert.Nil(T,err) && assert.True(T, nextfeed.Valid) {
-			next := getLink("next-archive",&feed)
+		if assert.Nil(T, err) && assert.True(T, nextfeed.Valid) {
+			next := getLink("next-archive", &feed)
 			if assert.NotNil(T, next) {
 				assert.Equal(T, fmt.Sprintf("http://server:12345/notifications/%s", nextfeed.String), *next)
 			}
@@ -276,7 +276,7 @@ func init() {
 			return
 		}
 
-		eventIDParts := strings.Split(eventID,":")
+		eventIDParts := strings.Split(eventID, ":")
 
 		router := mux.NewRouter()
 		router.HandleFunc("/notifications/{aggregate_id}/{version}", eventHandler)
@@ -302,7 +302,7 @@ func init() {
 
 	Then(`^the event detail is returned$`, func() {
 		var event atompub.EventStoreContent
-		err := xml.Unmarshal(eventData,&event)
+		err := xml.Unmarshal(eventData, &event)
 		if assert.Nil(T, err) {
 			log.Infof("%+v", event)
 			assert.Equal(T, base64.StdEncoding.EncodeToString([]byte("ok")), event.Content)

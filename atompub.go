@@ -11,8 +11,8 @@ import (
 	atomdata "github.com/xtracdev/es-atom-data"
 	"golang.org/x/tools/blog/atom"
 	"net/http"
-	"time"
 	"strconv"
+	"time"
 )
 
 var ErrBadDBConnection = errors.New("Nil db passed to factory method")
@@ -239,11 +239,11 @@ func NewEventRetrieveHandler(db *sql.DB, linkhostport string) (func(rw http.Resp
 			return
 		}
 
-		event, err := atomdata.RetrieveEvent(db,aggregateId,version)
+		event, err := atomdata.RetrieveEvent(db, aggregateId, version)
 		if err != nil {
 			switch err {
 			case sql.ErrNoRows:
-				http.Error(rw,"", http.StatusNotFound)
+				http.Error(rw, "", http.StatusNotFound)
 			default:
 				log.Warnf("Error retrieving event: %s", err.Error())
 			}
@@ -259,7 +259,6 @@ func NewEventRetrieveHandler(db *sql.DB, linkhostport string) (func(rw http.Resp
 			Content:     base64.StdEncoding.EncodeToString(event.Payload.([]byte)),
 		}
 
-
 		marshalled, err := xml.Marshal(&eventContent)
 		if err != nil {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
@@ -272,5 +271,5 @@ func NewEventRetrieveHandler(db *sql.DB, linkhostport string) (func(rw http.Resp
 
 		rw.Write(marshalled)
 
-	},nil
+	}, nil
 }
