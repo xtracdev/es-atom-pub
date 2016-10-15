@@ -63,6 +63,7 @@ func TestRetrieveEvent(t *testing.T) {
 	etag := w.Header().Get("ETag")
 	assert.Equal(t, "1234567:1", etag)
 
-	//Validate cache headers
+	//Validate content type
+	assert.Equal(t, "application/xml", w.Header().Get("Content-Type"))
 
 }
