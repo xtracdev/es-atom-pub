@@ -1,6 +1,7 @@
 package atompubsvc
 
 import (
+	"encoding/base64"
 	"encoding/xml"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
@@ -10,7 +11,6 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
-	"encoding/base64"
 )
 
 func TestRetrieveEvent(t *testing.T) {
@@ -56,8 +56,12 @@ func TestRetrieveEvent(t *testing.T) {
 		assert.Equal(t, ts, event.Published)
 	}
 
+	//Validate cache headers
+	cc := w.Header().Get("Cache-Control")
+	assert.Equal(t, "max-age=2592000", cc)
 
-	//Validate content type
+	etag := w.Header().Get("ETag")
+	assert.Equal(t, "1234567:1", etag)
 
 	//Validate cache headers
 
