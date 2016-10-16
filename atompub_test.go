@@ -97,3 +97,30 @@ func TestRetrieveEventParamValidation(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Result().StatusCode)
 
 }
+
+func TestRetrieveEventNoSuchEvent(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+	}
+	defer db.Close()
+
+	rows := sqlmock.NewRows([]string{"event_time", "typecode", "payload"})
+
+	mock.ExpectQuery("select event_time").WillReturnRows(rows)
+
+	eventHandler, err := NewEventRetrieveHandler(db, "myhost:12345")
+	assert.Nil(t, err)
+
+	router := mux.NewRouter()
+	router.HandleFunc("/notifications/{aggregate_id}/{version}", eventHandler)
+
+	r, err := http.NewRequest("GET", "/notifications/1234567/1", nil)
+	assert.Nil(t, err)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, r)
+
+	//Validate status code
+	assert.Equal(t, http.StatusNotFound, w.Result().StatusCode)
+}
