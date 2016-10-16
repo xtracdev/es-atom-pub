@@ -246,6 +246,7 @@ func NewEventRetrieveHandler(db *sql.DB, linkhostport string) (func(rw http.Resp
 				http.Error(rw, "", http.StatusNotFound)
 			default:
 				log.Warnf("Error retrieving event: %s", err.Error())
+				http.Error(rw, "Error retrieving event", http.StatusInternalServerError)
 			}
 
 			return

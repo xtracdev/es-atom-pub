@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+	"errors"
 )
 
 func TestRetrieveEvent(t *testing.T) {
@@ -123,4 +124,29 @@ func TestRetrieveEventNoSuchEvent(t *testing.T) {
 
 	//Validate status code
 	assert.Equal(t, http.StatusNotFound, w.Result().StatusCode)
+}
+
+func TestRetrieveEventQueryError(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+	}
+	defer db.Close()
+
+	mock.ExpectQuery("select event_time").WillReturnError(errors.New("boom"))
+
+	eventHandler, err := NewEventRetrieveHandler(db, "myhost:12345")
+	assert.Nil(t, err)
+
+	router := mux.NewRouter()
+	router.HandleFunc("/notifications/{aggregate_id}/{version}", eventHandler)
+
+	r, err := http.NewRequest("GET", "/notifications/1234567/1", nil)
+	assert.Nil(t, err)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, r)
+
+	//Validate status code
+	assert.Equal(t, http.StatusInternalServerError, w.Result().StatusCode)
 }
