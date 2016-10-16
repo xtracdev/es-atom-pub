@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/tools/blog/atom"
 	"gopkg.in/DATA-DOG/go-sqlmock.v1"
 	"io/ioutil"
 	"net/http"
@@ -168,6 +169,77 @@ func TestRetrieve(t *testing.T) {
 				//Validate content type
 				assert.Equal(t, "application/xml", w.Header().Get("Content-Type"))
 			}
+
+			err = mock.ExpectationsWereMet()
+			assert.Nil(t, err)
 		})
 	}
+}
+
+func getLink(linkRelationship string, feed *atom.Feed) *string {
+	for _, l := range feed.Link {
+		if l.Rel == linkRelationship {
+			return &l.Href
+		}
+	}
+
+	return nil
+}
+
+func TestRecentFeedHandler(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+	}
+	defer db.Close()
+
+	ts := time.Now()
+	rows := sqlmock.NewRows([]string{"event_time", "aggregate_id",
+		"version", "typecode", "payload"},
+	).AddRow(ts, "1x2x333", 3, "foo", []byte("yeah ok"))
+	mock.ExpectQuery("select event_time").WillReturnRows(rows)
+
+	rowsFeedId := sqlmock.NewRows([]string{"feedid"}).AddRow("feed-xxx")
+	mock.ExpectQuery("select feedid from feed").WillReturnRows(rowsFeedId)
+
+	eventHandler, err := NewRecentHandler(db, "testhost:12345")
+	assert.Nil(t, err)
+
+	router := mux.NewRouter()
+	router.HandleFunc("/notifications/recent", eventHandler)
+
+	r, err := http.NewRequest("GET", "/notifications/recent", nil)
+	assert.Nil(t, err)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Result().StatusCode)
+
+	eventData, err := ioutil.ReadAll(w.Body)
+	assert.Nil(t, err)
+
+	var feed atom.Feed
+	err = xml.Unmarshal(eventData, &feed)
+	if assert.Nil(t, err) {
+		assert.Equal(t, "recent", feed.ID)
+		_, err := time.Parse(time.RFC3339, string(feed.Updated))
+		assert.Nil(t, err)
+		prev := getLink("prev-archive", &feed)
+		if assert.NotNil(t, prev) {
+			assert.Equal(t, "http://testhost:12345/notifications/feed-xxx", *prev)
+		}
+		self := getLink("self", &feed)
+		if assert.NotNil(t, self) {
+			assert.Equal(t, "http://testhost:12345/notifications/recent", *self)
+		}
+
+		related := getLink("related", &feed)
+		if assert.NotNil(t, related) {
+			assert.Equal(t, *self, *related)
+		}
+	}
+
+	err = mock.ExpectationsWereMet()
+	assert.Nil(t, err)
 }

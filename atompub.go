@@ -72,7 +72,7 @@ func NewRecentHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWri
 	return func(rw http.ResponseWriter, req *http.Request) {
 		events, err := atomdata.RetrieveRecent(db)
 		if err != nil {
-			log.Warnf("Error retrieving recent items", err.Error())
+			log.Warnf("Error retrieving recent items: %s", err.Error())
 			http.Error(rw, "Error retrieving feed items", http.StatusInternalServerError)
 			return
 		}
@@ -87,7 +87,7 @@ func NewRecentHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWri
 		feed := atom.Feed{
 			Title:   "Event store feed",
 			ID:      "recent",
-			Updated: atom.TimeStr(time.Now().Truncate(time.Hour).Format(time.RFC3339)),
+			Updated: atom.TimeStr(time.Now().Format(time.RFC3339)),
 		}
 
 		self := atom.Link{
