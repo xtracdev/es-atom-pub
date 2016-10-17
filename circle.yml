@@ -1,0 +1,11 @@
+machine:
+  services:
+   - docker
+
+dependencies:
+  override:
+    - docker run --rm -v "$PWD":/go/src/github.com/xtracdev/es-atom-pub -e DB_USER=$DB_USER -e DB_PASSWORD=$DB_PASSWORD -e DB_HOST=$DB_HOST -e DB_PORT=$DB_PORT -e DB_SVC=$DB_SVC -w /go/src/github.com/xtracdev/es-atom-pub xtracdev/goora bash -c make
+
+test:
+  override:
+    - echo 'test automation run as part of the docker build'
