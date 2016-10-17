@@ -191,17 +191,17 @@ func TestRecentFeedHandler(t *testing.T) {
 	ts := time.Now()
 
 	var recentTests = []struct {
-		testName       string
-		nilDB          bool
-		expectedStatus int
-		colNamesEvents       []string
-		rowColsEvents        []driver.Value
+		testName         string
+		nilDB            bool
+		expectedStatus   int
+		colNamesEvents   []string
+		rowColsEvents    []driver.Value
 		eventsQueryError error
-		colNamesFeed	[]string
-		rowColsFeed []driver.Value
+		colNamesFeed     []string
+		rowColsFeed      []driver.Value
 		feedQueryErr     error
-		expectedPrev string
-		expectedSelf string
+		expectedPrev     string
+		expectedSelf     string
 	}{
 		{
 			"rectrieve recent ok",
@@ -240,12 +240,12 @@ func TestRecentFeedHandler(t *testing.T) {
 			http.StatusInternalServerError,
 			[]string{}, []driver.Value{}, nil,
 			[]string{}, []driver.Value{}, nil,
-			"","",
+			"", "",
 		},
 	}
 
-	for _,test := range recentTests {
-		t.Run(test.testName, func(t *testing.T){
+	for _, test := range recentTests {
+		t.Run(test.testName, func(t *testing.T) {
 
 			//Create mock db
 			db, mock, err := sqlmock.New()
@@ -293,7 +293,7 @@ func TestRecentFeedHandler(t *testing.T) {
 			}
 
 			//Instantiate the handler
-			var eventHandler func(http.ResponseWriter,*http.Request)
+			var eventHandler func(http.ResponseWriter, *http.Request)
 			if test.nilDB == false {
 				eventHandler, err = NewRecentHandler(db, "testhost:12345")
 				assert.Nil(t, err)
@@ -346,4 +346,79 @@ func TestRecentFeedHandler(t *testing.T) {
 			assert.Nil(t, err)
 		})
 	}
+}
+
+func TestRetrieveArchiveHandler(t *testing.T) {
+	//Create mock db
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+	}
+	defer db.Close()
+
+	ts := time.Now()
+	eventRows := sqlmock.NewRows([]string{"event_time", "aggregate_id", "version", "typecode", "payload"}).AddRow(
+		ts, "1x2x333", 3, "foo", []byte("yeah ok"),
+	)
+	mock.ExpectQuery("select event_time").WillReturnRows(eventRows).WithArgs("foo")
+
+	prevRows := sqlmock.NewRows([]string{"previous"}).AddRow("prev-xxx")
+	mock.ExpectQuery("select previous").WillReturnRows(prevRows)
+
+	nextRows := sqlmock.NewRows([]string{"feedid"}).AddRow("next-xxx")
+	mock.ExpectQuery("select feedid").WillReturnRows(nextRows)
+
+	archiveHandler, err := NewArchiveHandler(db, "testhost:12345")
+	assert.Nil(t, err)
+
+	router := mux.NewRouter()
+	router.HandleFunc("/notifications/{feedid}", archiveHandler)
+
+	r, err := http.NewRequest("GET", "/notifications/foo", nil)
+	assert.Nil(t, err)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, r)
+
+	//Check the status code
+	assert.Equal(t, http.StatusOK, w.Result().StatusCode)
+
+	eventData, err := ioutil.ReadAll(w.Body)
+	assert.Nil(t, err)
+
+	var feed atom.Feed
+	err = xml.Unmarshal(eventData, &feed)
+	if assert.Nil(t, err) {
+		assert.Equal(t, "foo", feed.ID)
+		assert.Equal(t, "", string(feed.Updated))
+		assert.Nil(t, err)
+		prev := getLink("prev-archive", &feed)
+		if assert.NotNil(t, prev) {
+			assert.Equal(t, "http://testhost:12345/notifications/prev-xxx", *prev)
+		}
+		self := getLink("self", &feed)
+		if assert.NotNil(t, self) {
+			assert.Equal(t, "http://testhost:12345/notifications/foo", *self)
+		}
+		next := getLink("next-archive", &feed)
+		if assert.NotNil(t, next) {
+			assert.Equal(t, "http://testhost:12345/notifications/next-xxx", *next)
+		}
+
+		if assert.Equal(t, 1, len(feed.Entry)) {
+			assert.Equal(t, "urn:esid:1x2x333:3", feed.Entry[0].ID)
+			assert.Equal(t, "foo", feed.Entry[0].Content.Type)
+			_, err = time.Parse(time.RFC3339Nano, string(feed.Entry[0].Published))
+			assert.Nil(t, err)
+		}
+
+		cc := w.Header().Get("Cache-Control")
+		assert.Equal(t, "max-age=2592000", cc)
+
+		etag := w.Header().Get("ETag")
+		assert.Equal(t, "foo", etag)
+	}
+
+	err = mock.ExpectationsWereMet()
+	assert.Nil(t, err)
 }

@@ -33,7 +33,7 @@ func addItemsToFeed(feed *atom.Feed, events []atomdata.TimestampedEvent, linkhos
 		//Here we can type assert without a check because the event array passed to this method
 		//was scanned from a driver.Value, which constrings the types that can be scanned and
 		//can convert those into []byte (or error out on the rows.Scan
-		payload:= event.Payload.([]byte)
+		payload := event.Payload.([]byte)
 
 		encodedPayload := base64.StdEncoding.EncodeToString(payload)
 
@@ -139,21 +139,21 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 
 		latestFeed, err := atomdata.RetrieveArchive(db, feedid)
 		if err != nil {
-			log.Warnf("Error retrieving last feed id", err.Error())
+			log.Warnf("Error retrieving last feed id: %s", err.Error())
 			http.Error(rw, "Error retrieving feed id", http.StatusInternalServerError)
 			return
 		}
 
 		previousFeed, err := atomdata.RetrievePreviousFeed(db, feedid)
 		if err != nil {
-			log.Warnf("Error retrieving previous feed id", err.Error())
+			log.Warnf("Error retrieving previous feed id: %s", err.Error())
 			http.Error(rw, "Error retrieving previous feed id", http.StatusInternalServerError)
 			return
 		}
 
 		nextFeed, err := atomdata.RetrieveNextFeed(db, feedid)
 		if err != nil {
-			log.Warnf("Error retrieving next feed id", err.Error())
+			log.Warnf("Error retrieving next feed id: %s", err.Error())
 			http.Error(rw, "Error retrieving next feed id", http.StatusInternalServerError)
 			return
 		}
