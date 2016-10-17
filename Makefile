@@ -11,5 +11,6 @@ build:
 	go get gopkg.in/DATA-DOG/go-sqlmock.v1
 	go get github.com/gorilla/mux
 	go get github.com/xtracdev/es-atom-data
+	go get golang.org/x/tools/blog/atom
 	go test
 	gucumber
