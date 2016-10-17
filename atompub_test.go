@@ -340,6 +340,12 @@ func TestRecentFeedHandler(t *testing.T) {
 						assert.Equal(t, *self, *related)
 					}
 				}
+
+				cc := w.Header().Get("Cache-Control")
+				assert.Equal(t, "no-store", cc)
+
+				etag := w.Header().Get("ETag")
+				assert.Equal(t, "", etag)
 			}
 
 			err = mock.ExpectationsWereMet()
@@ -392,6 +398,16 @@ func TestRetrieveArchiveHandler(t *testing.T) {
 			true,
 			"foo",
 			http.StatusInternalServerError,
+			[]string{},[]driver.Value{},nil,
+			[]string{},[]driver.Value{},nil,
+			[]string{},[]driver.Value{},nil,
+			"","","",
+		},
+		{
+			"retrieve archive not resource",
+			false,
+			"",
+			http.StatusBadRequest,
 			[]string{},[]driver.Value{},nil,
 			[]string{},[]driver.Value{},nil,
 			[]string{},[]driver.Value{},nil,
@@ -477,9 +493,18 @@ func TestRetrieveArchiveHandler(t *testing.T) {
 			}
 
 			router := mux.NewRouter()
-			router.HandleFunc("/notifications/{feedid}", archiveHandler)
+			if test.feedid == "" {
+				//A bit artificial...
+				router.HandleFunc("/notifications/", archiveHandler)
+			} else {
+				router.HandleFunc("/notifications/{feedid}", archiveHandler)
+			}
 
-			r, err := http.NewRequest("GET", fmt.Sprintf("/notifications/%s", test.feedid), nil)
+			var testUri = fmt.Sprintf("/notifications/%s", test.feedid)
+			if test.feedid == "" {
+				testUri = "/notifications/"
+			}
+			r, err := http.NewRequest("GET", testUri, nil)
 			assert.Nil(t, err)
 			w := httptest.NewRecorder()
 

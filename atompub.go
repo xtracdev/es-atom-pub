@@ -131,7 +131,7 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 	return func(rw http.ResponseWriter, req *http.Request) {
 		feedid := mux.Vars(req)["feedid"]
 		if feedid == "" {
-			http.Error(rw, "No feed id in uri", http.StatusInternalServerError)
+			http.Error(rw, "No feed id in uri", http.StatusBadRequest)
 			return
 		}
 
