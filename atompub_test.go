@@ -229,6 +229,19 @@ func TestRecentFeedHandler(t *testing.T) {
 			"",
 			"",
 		},
+		{
+			"retrieve recent feed query error",
+			false,
+			http.StatusInternalServerError,
+			[]string{"event_time", "aggregate_id", "version", "typecode", "payload"},
+			[]driver.Value{ts, "1x2x333", 3, "foo", []byte("yeah ok")},
+			nil,
+			[]string{"feedid"},
+			[]driver.Value{},
+			errors.New("kaboom"),
+			"",
+			"",
+		},
 	}
 
 	for _,test := range recentTests {
