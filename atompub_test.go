@@ -6,19 +6,24 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	log "github.com/Sirupsen/logrus"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/tools/blog/atom"
 	"gopkg.in/DATA-DOG/go-sqlmock.v1"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 )
 
 func TestRetrieve(t *testing.T) {
 
+	os.Setenv("STATSD_ENDPOINT", "")
+	configureStatsD()
 	ts := time.Now()
 
 	var retrieveTests = []struct {
@@ -187,6 +192,38 @@ func getLink(linkRelationship string, feed *atom.Feed) *string {
 }
 
 func TestRecentFeedHandler(t *testing.T) {
+
+	addr, err := net.ResolveUDPAddr("udp", ":0")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ln, err := net.ListenUDP("udp", addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	log.Infof("addr: %v", ln.LocalAddr())
+
+	os.Setenv("STATSD_ENDPOINT", ln.LocalAddr().String())
+
+	//Run this in the background - end of test will kill it. This is to let us have something to
+	//catch any writes of statsd data. Since the data is written using udp we might not see anything
+	//show up which is cool - we want to cover the instantiation
+	go func() {
+		buf := make([]byte, 1024)
+
+		for {
+			n, addr, err := ln.ReadFromUDP(buf)
+			log.Info("Received ", string(buf[0:n]), " from ", addr)
+
+			if err != nil {
+				log.Info("Error: ", err)
+			}
+		}
+	}()
+
+	configureStatsD()
 
 	ts := time.Now()
 

@@ -7,10 +7,12 @@ import (
 	"errors"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
+	"github.com/armon/go-metrics"
 	"github.com/gorilla/mux"
 	atomdata "github.com/xtracdev/es-atom-data"
 	"golang.org/x/tools/blog/atom"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 )
@@ -58,6 +60,27 @@ func addItemsToFeed(feed *atom.Feed, events []atomdata.TimestampedEvent, linkhos
 
 		feed.Entry = append(feed.Entry, entry)
 
+	}
+}
+
+func configureStatsD() {
+	statsdEndpoint := os.Getenv("STATSD_ENDPOINT")
+	log.Infof("STATSD_ENDPOINT: %s", statsdEndpoint)
+
+	if statsdEndpoint != "" {
+
+		log.Info("Using vanilla statsd client to send telemetry to ", statsdEndpoint)
+		sink, err := metrics.NewStatsdSink(statsdEndpoint)
+		if err != nil {
+			log.Warn("Unable to configure statds sink", err.Error())
+			return
+		}
+		metrics.NewGlobal(metrics.DefaultConfig(statsdEndpoint), sink)
+	} else {
+		log.Info("Using in memory metrics accumulator - dump via USR1 signal")
+		inm := metrics.NewInmemSink(10*time.Second, 5*time.Minute)
+		metrics.DefaultInmemSignal(inm)
+		metrics.NewGlobal(metrics.DefaultConfig("xavi"), inm)
 	}
 }
 
