@@ -387,6 +387,16 @@ func TestRetrieveArchiveHandler(t *testing.T) {
 			"http://testhost:12345/notifications/foo",
 			"http://testhost:12345/notifications/next-xxx",
 		},
+		{
+			"retrieve archive nil db",
+			true,
+			"foo",
+			http.StatusInternalServerError,
+			[]string{},[]driver.Value{},nil,
+			[]string{},[]driver.Value{},nil,
+			[]string{},[]driver.Value{},nil,
+			"","","",
+		},
 	}
 
 	for _, test := range archiveTests {
@@ -456,8 +466,15 @@ func TestRetrieveArchiveHandler(t *testing.T) {
 				nextQuery = nextQuery.WillReturnError(test.feedQueryNextErr)
 			}
 
-			archiveHandler, err := NewArchiveHandler(db, "testhost:12345")
-			assert.Nil(t, err)
+			var archiveHandler func(http.ResponseWriter,*http.Request)
+			if test.nilDB == false {
+				archiveHandler, err = NewArchiveHandler(db, "testhost:12345")
+				assert.Nil(t, err)
+			} else {
+				archiveHandler, err = NewArchiveHandler(nil, "testhost:12345")
+				assert.NotNil(t, err)
+				return
+			}
 
 			router := mux.NewRouter()
 			router.HandleFunc("/notifications/{feedid}", archiveHandler)
