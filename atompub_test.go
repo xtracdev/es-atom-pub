@@ -394,24 +394,102 @@ func TestRetrieveArchiveHandler(t *testing.T) {
 			"http://testhost:12345/notifications/next-xxx",
 		},
 		{
+			"retrieve archive recent uri",
+			false,
+			"recent",
+			http.StatusOK,
+			[]string{"event_time", "aggregate_id", "version", "typecode", "payload"},
+			[]driver.Value{ts, "1x2x333", 3, "foo", []byte("yeah ok")},
+			nil,
+			[]string{"previous"},
+			[]driver.Value{"prev-xxx"},
+			nil,
+			[]string{"feedid"},
+			[]driver.Value{"next-xxx"},
+			nil,
+			"http://testhost:12345/notifications/prev-xxx",
+			"http://testhost:12345/notifications/recent",
+			"http://testhost:12345/notifications/next-xxx",
+		},
+		{
+			"retrieve archive next feed is recent",
+			false,
+			"foo",
+			http.StatusOK,
+			[]string{"event_time", "aggregate_id", "version", "typecode", "payload"},
+			[]driver.Value{ts, "1x2x333", 3, "foo", []byte("yeah ok")},
+			nil,
+			[]string{"previous"},
+			[]driver.Value{"prev-xxx"},
+			nil,
+			[]string{"feedid"},
+			[]driver.Value{nil},
+			nil,
+			"http://testhost:12345/notifications/prev-xxx",
+			"http://testhost:12345/notifications/foo",
+			"http://testhost:12345/notifications/recent",
+		},
+		{
 			"retrieve archive nil db",
 			true,
 			"foo",
 			http.StatusInternalServerError,
-			[]string{},[]driver.Value{},nil,
-			[]string{},[]driver.Value{},nil,
-			[]string{},[]driver.Value{},nil,
-			"","","",
+			[]string{}, []driver.Value{}, nil,
+			[]string{}, []driver.Value{}, nil,
+			[]string{}, []driver.Value{}, nil,
+			"", "", "",
 		},
 		{
 			"retrieve archive not resource",
 			false,
 			"",
 			http.StatusBadRequest,
-			[]string{},[]driver.Value{},nil,
-			[]string{},[]driver.Value{},nil,
-			[]string{},[]driver.Value{},nil,
-			"","","",
+			[]string{}, []driver.Value{}, nil,
+			[]string{}, []driver.Value{}, nil,
+			[]string{}, []driver.Value{}, nil,
+			"", "", "",
+		},
+		{
+			"retrieve archive event retrieve error",
+			false,
+			"foo",
+			http.StatusInternalServerError,
+			[]string{"event_time", "aggregate_id", "version", "typecode", "payload"},
+			[]driver.Value{},
+			errors.New("boom"),
+			[]string{}, []driver.Value{}, nil,
+			[]string{}, []driver.Value{}, nil,
+			"", "", "",
+		},
+		{
+			"retrieve previous error",
+			false,
+			"foo",
+			http.StatusInternalServerError,
+			[]string{"event_time", "aggregate_id", "version", "typecode", "payload"},
+			[]driver.Value{ts, "1x2x333", 3, "foo", []byte("yeah ok")},
+			nil,
+			[]string{"previous"},
+			[]driver.Value{},
+			errors.New("boom"),
+			[]string{}, []driver.Value{}, nil,
+			"", "", "",
+		},
+		{
+			"retrieve next error",
+			false,
+			"foo",
+			http.StatusInternalServerError,
+			[]string{"event_time", "aggregate_id", "version", "typecode", "payload"},
+			[]driver.Value{ts, "1x2x333", 3, "foo", []byte("yeah ok")},
+			nil,
+			[]string{"previous"},
+			[]driver.Value{"prev-xxx"},
+			nil,
+			[]string{"feedid"},
+			[]driver.Value{},
+			errors.New("boom"),
+			"", "", "",
 		},
 	}
 
@@ -482,7 +560,7 @@ func TestRetrieveArchiveHandler(t *testing.T) {
 				nextQuery = nextQuery.WillReturnError(test.feedQueryNextErr)
 			}
 
-			var archiveHandler func(http.ResponseWriter,*http.Request)
+			var archiveHandler func(http.ResponseWriter, *http.Request)
 			if test.nilDB == false {
 				archiveHandler, err = NewArchiveHandler(db, "testhost:12345")
 				assert.Nil(t, err)
@@ -520,20 +598,20 @@ func TestRetrieveArchiveHandler(t *testing.T) {
 				var feed atom.Feed
 				err = xml.Unmarshal(eventData, &feed)
 				if assert.Nil(t, err) {
-					assert.Equal(t, "foo", feed.ID)
+					assert.Equal(t, test.feedid, feed.ID)
 					assert.Equal(t, "", string(feed.Updated))
 					assert.Nil(t, err)
 					prev := getLink("prev-archive", &feed)
 					if assert.NotNil(t, prev) {
-						assert.Equal(t, "http://testhost:12345/notifications/prev-xxx", *prev)
+						assert.Equal(t, test.expectedPrev, *prev)
 					}
 					self := getLink("self", &feed)
 					if assert.NotNil(t, self) {
-						assert.Equal(t, "http://testhost:12345/notifications/foo", *self)
+						assert.Equal(t, test.expectedSelf, *self)
 					}
 					next := getLink("next-archive", &feed)
 					if assert.NotNil(t, next) {
-						assert.Equal(t, "http://testhost:12345/notifications/next-xxx", *next)
+						assert.Equal(t, test.expectedNext, *next)
 					}
 
 					if assert.Equal(t, 1, len(feed.Entry)) {
@@ -543,11 +621,19 @@ func TestRetrieveArchiveHandler(t *testing.T) {
 						assert.Nil(t, err)
 					}
 
-					cc := w.Header().Get("Cache-Control")
-					assert.Equal(t, "max-age=2592000", cc)
+					if feed.ID != "recent" {
+						cc := w.Header().Get("Cache-Control")
+						assert.Equal(t, "max-age=2592000", cc)
 
-					etag := w.Header().Get("ETag")
-					assert.Equal(t, "foo", etag)
+						etag := w.Header().Get("ETag")
+						assert.Equal(t, "foo", etag)
+					} else {
+						cc := w.Header().Get("Cache-Control")
+						assert.Equal(t, "no-store", cc)
+
+						etag := w.Header().Get("ETag")
+						assert.Equal(t, "", etag)
+					}
 				}
 			}
 

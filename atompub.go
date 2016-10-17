@@ -112,7 +112,6 @@ func NewRecentHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWri
 
 		out, err := xml.Marshal(&feed)
 		if err != nil {
-			log.Warnf("Error marshalling feed data: %s", err.Error())
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 			return
 		}
