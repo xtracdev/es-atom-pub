@@ -156,7 +156,7 @@ func TestRetrieve(t *testing.T) {
 					assert.Equal(t, test.expectedEvent.TypeCode, event.TypeCode)
 					assert.Equal(t, test.expectedEvent.Version, event.Version)
 					assert.Equal(t, test.expectedEvent.Content, event.Content)
-					assert.Equal(t, test.expectedEvent.Published, event.Published)
+					assert.True(t, test.expectedEvent.Published.Equal(event.Published))
 				}
 
 				//Validate cache headers
