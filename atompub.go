@@ -84,14 +84,33 @@ func configureStatsD() {
 	}
 }
 
+func logTimingStats(svc string, start time.Time, err error) {
+	duration := time.Now().Sub(start)
+	go func(svc string, duration time.Duration, err error) {
+		ms := float32(duration.Nanoseconds()) / 1000.0 / 1000.0
+		if err != nil {
+			key := []string{"es-atom-pub", fmt.Sprintf("%s-error", svc)}
+			metrics.AddSample(key, float32(ms))
+			metrics.IncrCounter(key, 1)
+		} else {
+			key := []string{"es-atom-pub", svc}
+			metrics.AddSample(key, float32(ms))
+			metrics.IncrCounter(key, 1)
+		}
+	}(svc, duration, err)
+}
+
 func NewRecentHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWriter, req *http.Request), error) {
 	if db == nil {
 		return nil, ErrBadDBConnection
 	}
 
 	return func(rw http.ResponseWriter, req *http.Request) {
+		svc := "notifications-recent"
+		start := time.Now()
 		events, err := atomdata.RetrieveRecent(db)
 		if err != nil {
+			logTimingStats(svc, start, err)
 			log.Warnf("Error retrieving recent items: %s", err.Error())
 			http.Error(rw, "Error retrieving feed items", http.StatusInternalServerError)
 			return
@@ -99,6 +118,7 @@ func NewRecentHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWri
 
 		latestFeed, err := atomdata.RetrieveLastFeed(db)
 		if err != nil {
+			logTimingStats(svc, start, err)
 			log.Warnf("Error retrieving last feed id: %s", err.Error())
 			http.Error(rw, "Error retrieving feed id", http.StatusInternalServerError)
 			return
@@ -136,12 +156,14 @@ func NewRecentHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWri
 		out, err := xml.Marshal(&feed)
 		if err != nil {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			logTimingStats(svc, start, err)
 			return
 		}
 
 		rw.Header().Add("Cache-Control", "no-store")
 		rw.Header().Add("Content-Type", "application/atom+xml")
 		rw.Write(out)
+		logTimingStats(svc, start, nil)
 	}, nil
 }
 
@@ -151,8 +173,11 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 	}
 
 	return func(rw http.ResponseWriter, req *http.Request) {
+		svc := "notifications-archive"
+		start := time.Now()
 		feedid := mux.Vars(req)["feedid"]
 		if feedid == "" {
+			logTimingStats(svc, start, errors.New("no feed in uri"))
 			http.Error(rw, "No feed id in uri", http.StatusBadRequest)
 			return
 		}
@@ -161,6 +186,7 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 
 		latestFeed, err := atomdata.RetrieveArchive(db, feedid)
 		if err != nil {
+			logTimingStats(svc, start, err)
 			log.Warnf("Error retrieving last feed id: %s", err.Error())
 			http.Error(rw, "Error retrieving feed id", http.StatusInternalServerError)
 			return
@@ -168,6 +194,7 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 
 		previousFeed, err := atomdata.RetrievePreviousFeed(db, feedid)
 		if err != nil {
+			logTimingStats(svc, start, err)
 			log.Warnf("Error retrieving previous feed id: %s", err.Error())
 			http.Error(rw, "Error retrieving previous feed id", http.StatusInternalServerError)
 			return
@@ -175,6 +202,7 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 
 		nextFeed, err := atomdata.RetrieveNextFeed(db, feedid)
 		if err != nil {
+			logTimingStats(svc, start, err)
 			log.Warnf("Error retrieving next feed id: %s", err.Error())
 			http.Error(rw, "Error retrieving next feed id", http.StatusInternalServerError)
 			return
@@ -215,6 +243,7 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 
 		out, err := xml.Marshal(&feed)
 		if err != nil {
+			logTimingStats(svc, start, err)
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -233,6 +262,8 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 		rw.Header().Add("Content-Type", "application/atom+xml")
 		rw.Write(out)
 
+		logTimingStats(svc, start, nil)
+
 	}, nil
 }
 
@@ -242,6 +273,8 @@ func NewEventRetrieveHandler(db *sql.DB, linkhostport string) (func(rw http.Resp
 	}
 
 	return func(rw http.ResponseWriter, req *http.Request) {
+		svc := "retrieve-event"
+		start := time.Now()
 		aggregateId := mux.Vars(req)["aggregate_id"]
 		versionParam := mux.Vars(req)["version"]
 
@@ -249,12 +282,14 @@ func NewEventRetrieveHandler(db *sql.DB, linkhostport string) (func(rw http.Resp
 
 		version, err := strconv.Atoi(versionParam)
 		if err != nil {
+			logTimingStats(svc, start, err)
 			http.Error(rw, err.Error(), http.StatusBadRequest)
 			return
 		}
 
 		event, err := atomdata.RetrieveEvent(db, aggregateId, version)
 		if err != nil {
+			logTimingStats(svc, start, err)
 			switch err {
 			case sql.ErrNoRows:
 				http.Error(rw, "", http.StatusNotFound)
@@ -276,6 +311,7 @@ func NewEventRetrieveHandler(db *sql.DB, linkhostport string) (func(rw http.Resp
 
 		marshalled, err := xml.Marshal(&eventContent)
 		if err != nil {
+			logTimingStats(svc, start, err)
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -285,6 +321,7 @@ func NewEventRetrieveHandler(db *sql.DB, linkhostport string) (func(rw http.Resp
 		rw.Header().Add("Cache-Control", "max-age=2592000")
 
 		rw.Write(marshalled)
+		logTimingStats(svc, start, nil)
 
 	}, nil
 }
