@@ -9,5 +9,6 @@ build:
 	go get github.com/armon/go-metrics
 	go get github.com/xtracdev/orapub
 	go get gopkg.in/DATA-DOG/go-sqlmock.v1
+	go get github.com/gorilla/mux
 	go test
 	gucumber
