@@ -10,5 +10,6 @@ build:
 	go get github.com/xtracdev/orapub
 	go get gopkg.in/DATA-DOG/go-sqlmock.v1
 	go get github.com/gorilla/mux
+        go get github.com/xtracdev/es-atom-data
 	go test
 	gucumber
