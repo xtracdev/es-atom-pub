@@ -16,7 +16,6 @@ import (
 )
 
 var ErrBadDBConnection = errors.New("Nil db passed to factory method")
-var ErrBytePayloadsOnly = errors.New("Only []byte payloads are supported for atom feed")
 
 type EventStoreContent struct {
 	XMLName     xml.Name  `xml:"http://github.com/xtracdev/goes event"`
@@ -27,14 +26,14 @@ type EventStoreContent struct {
 	Content     string    `xml:"content"`
 }
 
-func addItemsToFeed(feed *atom.Feed, events []atomdata.TimestampedEvent, linkhostport string) error {
+func addItemsToFeed(feed *atom.Feed, events []atomdata.TimestampedEvent, linkhostport string) {
 
 	for _, event := range events {
 
-		payload, ok := event.Payload.([]byte)
-		if !ok {
-			return ErrBytePayloadsOnly
-		}
+		//Here we can type assert without a check because the event array passed to this method
+		//was scanned from a driver.Value, which constrings the types that can be scanned and
+		//can convert those into []byte (or error out on the rows.Scan
+		payload:= event.Payload.([]byte)
 
 		encodedPayload := base64.StdEncoding.EncodeToString(payload)
 
@@ -60,8 +59,6 @@ func addItemsToFeed(feed *atom.Feed, events []atomdata.TimestampedEvent, linkhos
 		feed.Entry = append(feed.Entry, entry)
 
 	}
-
-	return nil
 }
 
 func NewRecentHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWriter, req *http.Request), error) {
@@ -79,7 +76,7 @@ func NewRecentHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWri
 
 		latestFeed, err := atomdata.RetrieveLastFeed(db)
 		if err != nil {
-			log.Warnf("Error retrieving last feed id", err.Error())
+			log.Warnf("Error retrieving last feed id: %s", err.Error())
 			http.Error(rw, "Error retrieving feed id", http.StatusInternalServerError)
 			return
 		}
@@ -111,12 +108,7 @@ func NewRecentHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWri
 			feed.Link = append(feed.Link, previous)
 		}
 
-		err = addItemsToFeed(&feed, events, latestFeed)
-		if err != nil {
-			log.Warnf("Error building feed items: %s", err.Error())
-			http.Error(rw, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		addItemsToFeed(&feed, events, latestFeed)
 
 		out, err := xml.Marshal(&feed)
 		if err != nil {
