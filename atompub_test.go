@@ -129,10 +129,10 @@ func TestRetrieve(t *testing.T) {
 
 			var eventHandler func(http.ResponseWriter, *http.Request)
 			if test.nilDB == false {
-				eventHandler, err = NewEventRetrieveHandler(db, "myhost:12345")
+				eventHandler, err = NewEventRetrieveHandler(db)
 				assert.Nil(t, err)
 			} else {
-				eventHandler, err = NewEventRetrieveHandler(nil, "myhost:12345")
+				eventHandler, err = NewEventRetrieveHandler(nil)
 				assert.NotNil(t, err)
 				return
 			}

@@ -19,6 +19,7 @@ import (
 
 var ErrBadDBConnection = errors.New("Nil db passed to factory method")
 
+//Used to serialize event store content when directly retrieving using aggregate id and version
 type EventStoreContent struct {
 	XMLName     xml.Name  `xml:"http://github.com/xtracdev/goes event"`
 	AggregateId string    `xml:"aggregateId"`
@@ -28,6 +29,7 @@ type EventStoreContent struct {
 	Content     string    `xml:"content"`
 }
 
+//Add the retrieved events for a given feed to the atom feed structure
 func addItemsToFeed(feed *atom.Feed, events []atomdata.TimestampedEvent, linkhostport string) {
 
 	for _, event := range events {
@@ -63,6 +65,8 @@ func addItemsToFeed(feed *atom.Feed, events []atomdata.TimestampedEvent, linkhos
 	}
 }
 
+//Configure where telemery data does. Currently this can be send via UDP to a listener, or can be buffered
+//internally and dumped via a signal.
 func configureStatsD() {
 	statsdEndpoint := os.Getenv("STATSD_ENDPOINT")
 	log.Infof("STATSD_ENDPOINT: %s", statsdEndpoint)
@@ -84,6 +88,7 @@ func configureStatsD() {
 	}
 }
 
+//Update counters and stats for timings, discriminating errors from non-errors
 func logTimingStats(svc string, start time.Time, err error) {
 	duration := time.Now().Sub(start)
 	go func(svc string, duration time.Duration, err error) {
@@ -100,6 +105,11 @@ func logTimingStats(svc string, start time.Time, err error) {
 	}(svc, duration, err)
 }
 
+//NewRecentHandler instantiates the handler for retrieve recent notifications, which are those that have not
+//yet been assigned a feed id. This will be served up at /notifications/recent/
+//The linkhostport argument is used to set the host and port in the link relations URL. This is useful
+//when proxying the feed, in which case the link relation URLs can reflect the proxied URLs, not the
+//direct URL.
 func NewRecentHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWriter, req *http.Request), error) {
 	if db == nil {
 		return nil, ErrBadDBConnection
@@ -167,6 +177,11 @@ func NewRecentHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWri
 	}, nil
 }
 
+//NewArchiveHandler instantiates a handler for retrieving feed archives, which is a set of events
+//associated with a specific feed id. This will be served up at /notifications/{feedid}
+//The linkhostport argument is used to set the host and port in the link relations URL. This is useful
+//when proxying the feed, in which case the link relation URLs can reflect the proxied URLs, not the
+//direct URL.
 func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWriter, req *http.Request), error) {
 	if db == nil {
 		return nil, ErrBadDBConnection
@@ -193,7 +208,8 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 			return
 		}
 
-		//Did we get any events?
+		//Did we get any events? We should not have a feed other than recent with no events, therefore
+		//if there are no events then the feed id does not exist.
 		if len(latestFeed) == 0 {
 			logTimingStats(svc, start, nil)
 			log.Infof("No data found for feed %s", feedid)
@@ -276,7 +292,9 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 	}, nil
 }
 
-func NewEventRetrieveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWriter, req *http.Request), error) {
+//NewRetrieveHandler instantiates a handler for the retrieval of specific events by aggregate id
+//and version. This will be served at /notifications/{aggregate_id}/{version}
+func NewEventRetrieveHandler(db *sql.DB	) (func(rw http.ResponseWriter, req *http.Request), error) {
 	if db == nil {
 		return nil, ErrBadDBConnection
 	}

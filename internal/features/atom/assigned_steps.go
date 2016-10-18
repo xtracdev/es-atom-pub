@@ -271,7 +271,7 @@ func init() {
 	When(`^I retrieve the event by its id$`, func() {
 		var err error
 
-		eventHandler, err := atompub.NewEventRetrieveHandler(db, "server:12345")
+		eventHandler, err := atompub.NewEventRetrieveHandler(db)
 		if !assert.Nil(T, err) {
 			return
 		}
