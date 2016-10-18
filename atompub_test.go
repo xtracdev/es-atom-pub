@@ -528,6 +528,16 @@ func TestRetrieveArchiveHandler(t *testing.T) {
 			errors.New("boom"),
 			"", "", "",
 		},
+		{
+			"retrieve feed id with no data",
+			false,
+			"foo",
+			http.StatusNotFound,
+			[]string{"event_time", "aggregate_id", "version", "typecode", "payload"}, []driver.Value{}, nil,
+			[]string{}, []driver.Value{}, nil,
+			[]string{}, []driver.Value{}, nil,
+			"", "", "",
+		},
 	}
 
 	for _, test := range archiveTests {

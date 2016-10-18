@@ -184,11 +184,20 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 
 		log.Infof("processing request for feed %s", feedid)
 
+		//Retrieve events for the given feed id.
 		latestFeed, err := atomdata.RetrieveArchive(db, feedid)
 		if err != nil {
 			logTimingStats(svc, start, err)
 			log.Warnf("Error retrieving last feed id: %s", err.Error())
 			http.Error(rw, "Error retrieving feed id", http.StatusInternalServerError)
+			return
+		}
+
+		//Did we get any events?
+		if len(latestFeed) == 0 {
+			logTimingStats(svc, start, nil)
+			log.Infof("No data found for feed %s", feedid)
+			http.Error(rw, "", http.StatusNotFound)
 			return
 		}
 
