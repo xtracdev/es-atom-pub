@@ -13,6 +13,7 @@ import (
 
 var app = kingpin.New("Atompub", "Atom feed of the oraeventstore")
 var linkhost = app.Flag("linkhost", "Base host:port for feed links (useful when proxying)").Required().String()
+var listenerHostAndPort = app.Flag("listenaddr", "Host:port to listen on for service http trafic").Required().String()
 
 func main() {
 	kingpin.MustParse(app.Parse(os.Args[1:]))
@@ -54,7 +55,7 @@ func main() {
 
 	srv := &http.Server{
 		Handler: r,
-		Addr:    ":8000",
+		Addr:    *listenerHostAndPort,
 	}
 
 	log.Fatal(srv.ListenAndServe())
