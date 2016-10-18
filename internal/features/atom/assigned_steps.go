@@ -230,13 +230,15 @@ func init() {
 	})
 
 	Then(`^all the events associated with the updated feed are returned$`, func() {
+		//Note that we order the events in the feed by id desc, so agg3 will be the second
+		//entry, agg4 will be the first entry.
 		feed = atom.Feed{}
 		err = xml.Unmarshal(feedData, &feed)
 		if assert.Nil(T, err) && assert.Equal(T, 2, len(feed.Entry), "Should be 2 events in the current feed") {
 			log.Infof("got %v", feed.Entry)
-			assert.Equal(T, fmt.Sprintf("urn:esid:%s:%d", "agg3", 1), feed.Entry[0].ID)
-			assert.Equal(T, fmt.Sprintf("urn:esid:%s:%d", "agg4", 1), feed.Entry[1].ID)
-			assert.Equal(T, base64.StdEncoding.EncodeToString([]byte("ok")), feed.Entry[0].Content.Body)
+			assert.Equal(T, fmt.Sprintf("urn:esid:%s:%d", "agg3", 1), feed.Entry[1].ID)
+			assert.Equal(T, fmt.Sprintf("urn:esid:%s:%d", "agg4", 1), feed.Entry[0].ID)
+			assert.Equal(T, base64.StdEncoding.EncodeToString([]byte("ok")), feed.Entry[1].Content.Body)
 		}
 	})
 
@@ -263,8 +265,8 @@ func init() {
 	})
 
 	Given(`^an event id exposed via a feed$`, func() {
-		if assert.True(T, len(feed.Entry) > 0) {
-			eventID = feed.Entry[0].ID
+		if assert.True(T, len(feed.Entry) > 1) {
+			eventID = feed.Entry[1].ID
 		}
 	})
 
