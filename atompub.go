@@ -294,7 +294,7 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 
 //NewRetrieveHandler instantiates a handler for the retrieval of specific events by aggregate id
 //and version. This will be served at /notifications/{aggregate_id}/{version}
-func NewEventRetrieveHandler(db *sql.DB	) (func(rw http.ResponseWriter, req *http.Request), error) {
+func NewEventRetrieveHandler(db *sql.DB) (func(rw http.ResponseWriter, req *http.Request), error) {
 	if db == nil {
 		return nil, ErrBadDBConnection
 	}

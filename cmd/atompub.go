@@ -43,7 +43,7 @@ func main() {
 		log.Fatal(err.Error())
 	}
 
-	retrieveHandler, err := atompub.NewEventRetrieveHandler(db, *linkhost)
+	retrieveHandler, err := atompub.NewEventRetrieveHandler(db)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
