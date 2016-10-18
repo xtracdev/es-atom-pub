@@ -161,7 +161,7 @@ func NewRecentHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWri
 			feed.Link = append(feed.Link, previous)
 		}
 
-		addItemsToFeed(&feed, events, latestFeed)
+		addItemsToFeed(&feed, events, linkhostport)
 
 		out, err := xml.Marshal(&feed)
 		if err != nil {
