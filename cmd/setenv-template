@@ -1,0 +1,5 @@
+DB_USER=xxxx
+DB_PASSWORD=xxxx
+DB_HOST=xxxx
+DB_PORT=xxxx
+DB_SVC=xxxx
