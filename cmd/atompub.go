@@ -2,7 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"github.com/alecthomas/kingpin"
 	"github.com/gorilla/mux"
 	atompub "github.com/xtracdev/es-atom-pub"
 	"github.com/xtracdev/oraconn"
@@ -11,18 +10,46 @@ import (
 	"os"
 )
 
-var app = kingpin.New("Atompub", "Atom feed of the oraeventstore")
-var linkhost = app.Flag("linkhost", "Base host:port for feed links (useful when proxying)").Required().String()
-var listenerHostAndPort = app.Flag("listenaddr", "Host:port to listen on for service http trafic").Required().String()
+
+type AtomFeedPubConfig struct {
+	linkhost string
+	listenerHostAndPort string
+}
+
+func NewAtomFeedPubConfig() *AtomFeedPubConfig {
+	var configErr bool
+	config := new(AtomFeedPubConfig)
+	config.linkhost = os.Getenv("LINKHOST")
+	if config.linkhost == "" {
+		log.Println("Missing LINKHOST environment variable value")
+		configErr = true
+	}
+
+	config.listenerHostAndPort = os.Getenv("LISTENADDR")
+	if config.listenerHostAndPort == "" {
+		log.Println("Missing LISTENADDR environment variable value")
+		configErr = true
+	}
+
+	if configErr {
+		log.Fatal("Error reading configuration from environment")
+	}
+
+	return config
+}
 
 func main() {
-	kingpin.MustParse(app.Parse(os.Args[1:]))
 
+	//Read atom pub config
+	feedConfig := NewAtomFeedPubConfig()
+
+	//Read db connection config
 	config, err := oraconn.NewEnvConfig()
 	if err != nil {
 		log.Fatalf("Missing environment configuration: %s", err.Error())
 	}
 
+	//Connect to DB
 	db, err := sql.Open("oci8", config.ConnectString())
 	if err != nil {
 		log.Fatal(err.Error())
@@ -33,12 +60,13 @@ func main() {
 		log.Fatal(err.Error())
 	}
 
-	recentHandler, err := atompub.NewRecentHandler(db, *linkhost)
+	//Create handlers
+	recentHandler, err := atompub.NewRecentHandler(db, feedConfig.linkhost)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
 
-	archiveHandler, err := atompub.NewArchiveHandler(db, *linkhost)
+	archiveHandler, err := atompub.NewArchiveHandler(db, feedConfig.linkhost)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
@@ -53,10 +81,12 @@ func main() {
 	r.HandleFunc("/notifications/{feedid}", archiveHandler)
 	r.HandleFunc("/notifications/{aggregate_id}/{version}", retrieveHandler)
 
+	//Config server
 	srv := &http.Server{
 		Handler: r,
-		Addr:    *listenerHostAndPort,
+		Addr:    feedConfig.listenerHostAndPort,
 	}
 
+	//Listen up...
 	log.Fatal(srv.ListenAndServe())
 }
