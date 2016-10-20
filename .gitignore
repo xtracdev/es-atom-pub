@@ -1,2 +1,4 @@
 setenv
+cmd/setenv
+cmd/proxy/setenv
 coverage.out
