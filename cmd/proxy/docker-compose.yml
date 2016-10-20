@@ -1,0 +1,22 @@
+version: '2'
+
+services:
+  atomfeedpub:
+    image: xtracdev/atompub
+    ports:
+      - "4000:8000"
+    environment:
+      - LINKHOST=${LINKHOST}
+      - LISTENADDR=${LISTENADDR}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_SVC=${DB_SVC}
+
+  nginxproxy:
+    image: nginx
+    volumes:
+      - ./rp.conf:/etc/nginx/nginx.conf
+    ports:
+      - "5000:5000" 
