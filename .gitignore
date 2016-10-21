@@ -2,3 +2,5 @@ setenv
 cmd/setenv
 cmd/proxy/setenv
 coverage.out
+cmd/cert.pem
+cmd/key.pem
