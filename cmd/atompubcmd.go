@@ -1,19 +1,24 @@
 package main
 
 import (
+	"crypto/tls"
 	"database/sql"
 	"github.com/gorilla/mux"
 	atompub "github.com/xtracdev/es-atom-pub"
 	"github.com/xtracdev/oraconn"
+	"github.com/xtracdev/tlsconfig"
 	"log"
 	"net/http"
 	"os"
 )
 
-
 type AtomFeedPubConfig struct {
-	linkhost string
+	linkhost            string
 	listenerHostAndPort string
+	secure              bool
+	privateKey          string
+	certfificate        string
+	caCert              string
 }
 
 func NewAtomFeedPubConfig() *AtomFeedPubConfig {
@@ -31,6 +36,38 @@ func NewAtomFeedPubConfig() *AtomFeedPubConfig {
 		configErr = true
 	}
 
+	//Load the TLS config from the envrionment. If INSECURE_PUBLISHER is present
+	//in the environment and set to 1 we create a non secured transport, otherwise
+	//if is assumed that a secure transport is desired and the rest of the
+	//associated config will be present in the environment.
+	insecurePublisher := os.Getenv("INSECURE_PUBLISHER")
+	if insecurePublisher == "1" {
+		config.secure = false
+	} else {
+		config.secure = true
+
+		config.privateKey = os.Getenv("PRIVATE_KEY")
+		if config.privateKey == "" {
+			log.Println("Missing PRIVATE_KEY environment variable value - required for secure config")
+			configErr = true
+		}
+
+		config.certfificate = os.Getenv("CERTIFICATE")
+		if config.certfificate == "" {
+			log.Println("Missing CERTIFICATE environment variable value - required for secure config")
+			configErr = true
+		}
+
+		config.caCert = os.Getenv("CACERT")
+		if config.caCert == "" {
+			log.Println("Missing CACERT environment variable value - required for secure config")
+			configErr = true
+		}
+
+	}
+
+	//Finally, if there were configuration errors, we're finished as we can't start with partial or
+	//malformed configuration
 	if configErr {
 		log.Fatal("Error reading configuration from environment")
 	}
@@ -85,6 +122,17 @@ func main() {
 	srv := &http.Server{
 		Handler: r,
 		Addr:    feedConfig.listenerHostAndPort,
+	}
+
+	if feedConfig.secure {
+		tlsConfig := tlsconfig.GetTlsConfiguration(
+			feedConfig.privateKey,
+			feedConfig.certfificate,
+			feedConfig.caCert,
+		)
+
+		srv.TLSConfig = tlsConfig
+		srv.TLSNextProto = make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0)
 	}
 
 	//Listen up...
