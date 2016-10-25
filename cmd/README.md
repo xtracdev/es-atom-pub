@@ -13,3 +13,16 @@ CACERT environment variables, respectively.
 For test purposes, [this README](https://github.com/d-smith/go-examples/tree/master/mtls-proxy) 
 has information on how to generate
 a CACERT and create certificates and keys for testing.
+
+For the full secure TLS and proxy config:
+
+* Generate a CA cert
+* Generate a server cert with the atomfeedpub CN
+* Generate a proxy server cert with the nginxproxy CN
+* Generate a client cert with the replicator CN
+
+Note if you do the above, you'll need to alias nginxproxy to localhost
+in your /etc/hosts file or you'll get a cert mismatch error if 
+you call the service using localhost. Alternatively you can generate
+a server cert for localhost and reference that in rp.conf, or
+generate a cert with your hostname and reference that, etc.

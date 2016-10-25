@@ -3,11 +3,11 @@ package main
 import (
 	"crypto/tls"
 	"database/sql"
+	log "github.com/Sirupsen/logrus"
 	"github.com/gorilla/mux"
 	atompub "github.com/xtracdev/es-atom-pub"
 	"github.com/xtracdev/oraconn"
 	"github.com/xtracdev/tlsconfig"
-	"log"
 	"net/http"
 	"os"
 )
@@ -78,6 +78,7 @@ func NewAtomFeedPubConfig() *AtomFeedPubConfig {
 func main() {
 
 	//Read atom pub config
+	log.Info("Reading config from the environment")
 	feedConfig := NewAtomFeedPubConfig()
 
 	//Read db connection config
@@ -87,17 +88,20 @@ func main() {
 	}
 
 	//Connect to DB
+	log.Info("Open SQL driver")
 	db, err := sql.Open("oci8", config.ConnectString())
 	if err != nil {
 		log.Fatal(err.Error())
 	}
 
+	log.Info("Ping database")
 	err = db.Ping()
 	if err != nil {
 		log.Fatal(err.Error())
 	}
 
 	//Create handlers
+	log.Info("Create and register handlers")
 	recentHandler, err := atompub.NewRecentHandler(db, feedConfig.linkhost)
 	if err != nil {
 		log.Fatal(err.Error())
@@ -118,23 +122,45 @@ func main() {
 	r.HandleFunc("/notifications/{feedid}", archiveHandler)
 	r.HandleFunc("/notifications/{aggregate_id}/{version}", retrieveHandler)
 
-	//Config server
-	srv := &http.Server{
-		Handler: r,
-		Addr:    feedConfig.listenerHostAndPort,
-	}
+	var server *http.Server
 
 	if feedConfig.secure {
-		tlsConfig := tlsconfig.GetTlsConfiguration(
+		log.Info("Configure secure server")
+		log.Info("Read key and certs; form TLC config")
+		tlsConfig, err := tlsconfig.GetTlsConfiguration(
 			feedConfig.privateKey,
 			feedConfig.certfificate,
 			feedConfig.caCert,
 		)
 
-		srv.TLSConfig = tlsConfig
-		srv.TLSNextProto = make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0)
+		if err != nil {
+			log.Fatal(err.Error())
+		}
+
+		log.Info("Config read, build server")
+
+		server = &http.Server{
+			Handler:      r,
+			Addr:         feedConfig.listenerHostAndPort,
+			TLSConfig:    tlsConfig,
+			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
+		}
+
+		//Listen up...
+		log.Info("Start server")
+		log.Fatal(server.ListenAndServeTLS(feedConfig.certfificate, feedConfig.privateKey))
+
+	} else {
+		//Config server
+		log.Info("Configure non secure server")
+		server = &http.Server{
+			Handler: r,
+			Addr:    feedConfig.listenerHostAndPort,
+		}
+
+		//Listen up...
+		log.Info("Start server")
+		log.Fatal(server.ListenAndServe())
 	}
 
-	//Listen up...
-	log.Fatal(srv.ListenAndServe())
 }

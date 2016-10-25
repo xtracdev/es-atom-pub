@@ -3,3 +3,9 @@ cmd/setenv
 cmd/proxy/setenv
 coverage.out
 cmd/atompub
+*.crt
+*.key
+*.csr
+cmd/certs
+apt.conf
+.env
