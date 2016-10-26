@@ -19,6 +19,14 @@ import (
 
 var ErrBadDBConnection = errors.New("Nil db passed to factory method")
 
+//URIs assumed by handlers - these are fixed as they embed references relative to the URIs
+//used in this package
+const (
+	RecentHandlerURI = "/notifications/recent"
+	ArchiveHandlerURI = "/notifications/{feedId}"
+	RetrieveEventHanderURI = "/events/{aggregateId}/{version}"
+)
+
 //Used to serialize event store content when directly retrieving using aggregate id and version
 type EventStoreContent struct {
 	XMLName     xml.Name  `xml:"http://github.com/xtracdev/goes event"`
@@ -106,7 +114,7 @@ func logTimingStats(svc string, start time.Time, err error) {
 }
 
 //NewRecentHandler instantiates the handler for retrieve recent notifications, which are those that have not
-//yet been assigned a feed id. This will be served up at /notifications/recent/
+//yet been assigned a feed id. This will be served up at /notifications/recent
 //The linkhostport argument is used to set the host and port in the link relations URL. This is useful
 //when proxying the feed, in which case the link relation URLs can reflect the proxied URLs, not the
 //direct URL.
@@ -178,7 +186,7 @@ func NewRecentHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWri
 }
 
 //NewArchiveHandler instantiates a handler for retrieving feed archives, which is a set of events
-//associated with a specific feed id. This will be served up at /notifications/{feedid}
+//associated with a specific feed id. This will be served up at /notifications/{feedId}
 //The linkhostport argument is used to set the host and port in the link relations URL. This is useful
 //when proxying the feed, in which case the link relation URLs can reflect the proxied URLs, not the
 //direct URL.
@@ -190,17 +198,17 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 	return func(rw http.ResponseWriter, req *http.Request) {
 		svc := "notifications-archive"
 		start := time.Now()
-		feedid := mux.Vars(req)["feedid"]
-		if feedid == "" {
+		feedID := mux.Vars(req)["feedId"]
+		if feedID == "" {
 			logTimingStats(svc, start, errors.New("no feed in uri"))
 			http.Error(rw, "No feed id in uri", http.StatusBadRequest)
 			return
 		}
 
-		log.Infof("processing request for feed %s", feedid)
+		log.Infof("processing request for feed %s", feedID)
 
 		//Retrieve events for the given feed id.
-		latestFeed, err := atomdata.RetrieveArchive(db, feedid)
+		latestFeed, err := atomdata.RetrieveArchive(db, feedID)
 		if err != nil {
 			logTimingStats(svc, start, err)
 			log.Warnf("Error retrieving last feed id: %s", err.Error())
@@ -212,12 +220,12 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 		//if there are no events then the feed id does not exist.
 		if len(latestFeed) == 0 {
 			logTimingStats(svc, start, nil)
-			log.Infof("No data found for feed %s", feedid)
+			log.Infof("No data found for feed %s", feedID)
 			http.Error(rw, "", http.StatusNotFound)
 			return
 		}
 
-		previousFeed, err := atomdata.RetrievePreviousFeed(db, feedid)
+		previousFeed, err := atomdata.RetrievePreviousFeed(db, feedID)
 		if err != nil {
 			logTimingStats(svc, start, err)
 			log.Warnf("Error retrieving previous feed id: %s", err.Error())
@@ -225,7 +233,7 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 			return
 		}
 
-		nextFeed, err := atomdata.RetrieveNextFeed(db, feedid)
+		nextFeed, err := atomdata.RetrieveNextFeed(db, feedID)
 		if err != nil {
 			logTimingStats(svc, start, err)
 			log.Warnf("Error retrieving next feed id: %s", err.Error())
@@ -235,11 +243,11 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 
 		feed := atom.Feed{
 			Title: "Event store feed",
-			ID:    feedid,
+			ID:    feedID,
 		}
 
 		self := atom.Link{
-			Href: fmt.Sprintf("http://%s/notifications/%s", linkhostport, feedid),
+			Href: fmt.Sprintf("http://%s/notifications/%s", linkhostport, feedID),
 			Rel:  "self",
 		}
 
@@ -276,10 +284,10 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 		//For all feeds except recent, we can indicate the page can be cached for a long time,
 		//e.g. 30 days. The recent page is mutable so we don't indicate caching for it. We could
 		//potentially attempt to load it from this method via link traversal.
-		if feedid != "recent" {
-			log.Infof("setting Cache-Control max-age=2592000 for ETag %s", feedid)
+		if feedID != "recent" {
+			log.Infof("setting Cache-Control max-age=2592000 for ETag %s", feedID)
 			rw.Header().Add("Cache-Control", "max-age=2592000") //Contents are immutable, cache for a month
-			rw.Header().Add("ETag", feedid)
+			rw.Header().Add("ETag", feedID)
 		} else {
 			rw.Header().Add("Cache-Control", "no-store")
 		}
@@ -293,7 +301,7 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 }
 
 //NewRetrieveHandler instantiates a handler for the retrieval of specific events by aggregate id
-//and version. This will be served at /notifications/{aggregate_id}/{version}
+//and version. This will be served at /notifications/{aggregateId}/{version}
 func NewEventRetrieveHandler(db *sql.DB) (func(rw http.ResponseWriter, req *http.Request), error) {
 	if db == nil {
 		return nil, ErrBadDBConnection
@@ -302,10 +310,10 @@ func NewEventRetrieveHandler(db *sql.DB) (func(rw http.ResponseWriter, req *http
 	return func(rw http.ResponseWriter, req *http.Request) {
 		svc := "retrieve-event"
 		start := time.Now()
-		aggregateId := mux.Vars(req)["aggregate_id"]
+		aggregateID := mux.Vars(req)["aggregateId"]
 		versionParam := mux.Vars(req)["version"]
 
-		log.Infof("Retrieving event %s %s", aggregateId, versionParam)
+		log.Infof("Retrieving event %s %s", aggregateID, versionParam)
 
 		version, err := strconv.Atoi(versionParam)
 		if err != nil {
@@ -314,7 +322,7 @@ func NewEventRetrieveHandler(db *sql.DB) (func(rw http.ResponseWriter, req *http
 			return
 		}
 
-		event, err := atomdata.RetrieveEvent(db, aggregateId, version)
+		event, err := atomdata.RetrieveEvent(db, aggregateID, version)
 		if err != nil {
 			logTimingStats(svc, start, err)
 			switch err {
@@ -329,7 +337,7 @@ func NewEventRetrieveHandler(db *sql.DB) (func(rw http.ResponseWriter, req *http
 		}
 
 		eventContent := EventStoreContent{
-			AggregateId: aggregateId,
+			AggregateId: aggregateID,
 			Version:     version,
 			TypeCode:    event.TypeCode,
 			Published:   event.Timestamp,
@@ -344,7 +352,7 @@ func NewEventRetrieveHandler(db *sql.DB) (func(rw http.ResponseWriter, req *http
 		}
 
 		rw.Header().Add("Content-Type", "application/xml")
-		rw.Header().Add("ETag", fmt.Sprintf("%s:%d", aggregateId, version))
+		rw.Header().Add("ETag", fmt.Sprintf("%s:%d", aggregateID, version))
 		rw.Header().Add("Cache-Control", "max-age=2592000")
 
 		rw.Write(marshalled)

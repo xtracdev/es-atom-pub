@@ -12,18 +12,29 @@ import (
 	"os"
 )
 
-type AtomFeedPubConfig struct {
+
+var insecureConfigBanner = `
+
+ __  .__   __.      _______. _______   ______  __    __  .______       _______
+|  | |  \ |  |     /       ||   ____| /      ||  |  |  | |   _  \     |   ____|
+|  | |   \|  |    |   (---- |  |__   |  ,----'|  |  |  | |  |_)  |    |  |__
+|  | |  .    |     \   \    |   __|  |  |     |  |  |  | |      /     |   __|
+|  | |  |\   | .----)   |   |  |____ |   ----.|   --'  | |  |\  \----.|  |____
+|__| |__| \__| |_______/    |_______| \______| \______/  | _| '._____||_______|
+ `
+
+type atomFeedPubConfig struct {
 	linkhost            string
 	listenerHostAndPort string
 	secure              bool
 	privateKey          string
-	certfificate        string
+	certificate         string
 	caCert              string
 }
 
-func NewAtomFeedPubConfig() *AtomFeedPubConfig {
+func newAtomFeedPubConfig() *atomFeedPubConfig {
 	var configErr bool
-	config := new(AtomFeedPubConfig)
+	config := new(atomFeedPubConfig)
 	config.linkhost = os.Getenv("LINKHOST")
 	if config.linkhost == "" {
 		log.Println("Missing LINKHOST environment variable value")
@@ -36,7 +47,7 @@ func NewAtomFeedPubConfig() *AtomFeedPubConfig {
 		configErr = true
 	}
 
-	//Load the TLS config from the envrionment. If INSECURE_PUBLISHER is present
+	//Load the TLS config from the environment. If INSECURE_PUBLISHER is present
 	//in the environment and set to 1 we create a non secured transport, otherwise
 	//if is assumed that a secure transport is desired and the rest of the
 	//associated config will be present in the environment.
@@ -52,8 +63,8 @@ func NewAtomFeedPubConfig() *AtomFeedPubConfig {
 			configErr = true
 		}
 
-		config.certfificate = os.Getenv("CERTIFICATE")
-		if config.certfificate == "" {
+		config.certificate = os.Getenv("CERTIFICATE")
+		if config.certificate == "" {
 			log.Println("Missing CERTIFICATE environment variable value - required for secure config")
 			configErr = true
 		}
@@ -79,7 +90,7 @@ func main() {
 
 	//Read atom pub config
 	log.Info("Reading config from the environment")
-	feedConfig := NewAtomFeedPubConfig()
+	feedConfig := newAtomFeedPubConfig()
 
 	//Read db connection config
 	config, err := oraconn.NewEnvConfig()
@@ -118,9 +129,9 @@ func main() {
 	}
 
 	r := mux.NewRouter()
-	r.HandleFunc("/notifications/recent", recentHandler)
-	r.HandleFunc("/notifications/{feedid}", archiveHandler)
-	r.HandleFunc("/notifications/{aggregate_id}/{version}", retrieveHandler)
+	r.HandleFunc(atompub.RecentHandlerURI, recentHandler)
+	r.HandleFunc(atompub.ArchiveHandlerURI, archiveHandler)
+	r.HandleFunc(atompub.RetrieveEventHanderURI, retrieveHandler)
 
 	var server *http.Server
 
@@ -129,7 +140,7 @@ func main() {
 		log.Info("Read key and certs; form TLC config")
 		tlsConfig, err := tlsconfig.GetTLSConfiguration(
 			feedConfig.privateKey,
-			feedConfig.certfificate,
+			feedConfig.certificate,
 			feedConfig.caCert,
 		)
 
@@ -148,9 +159,10 @@ func main() {
 
 		//Listen up...
 		log.Info("Start server")
-		log.Fatal(server.ListenAndServeTLS(feedConfig.certfificate, feedConfig.privateKey))
+		log.Fatal(server.ListenAndServeTLS(feedConfig.certificate, feedConfig.privateKey))
 
 	} else {
+		log.Println(insecureConfigBanner)
 		//Config server
 		log.Info("Configure non secure server")
 		server = &http.Server{

@@ -5,10 +5,13 @@ as per your set up, then
 docker run -p 8000:8000 --env-file ./setenv  xtracdev/atompub --linkhost localhost:8000 --listenaddr :8000
 </pre>
 
-For secure configuration, INSECURE_PUBLISHER must be set to 1 in the 
-environment, and the paths to the private key, certificate, and CA
+For secure configuration, INSECURE_PUBLISHER must be set to 0 in the 
+environment if provided, and the paths to the private key, certificate, and CA
 certificate must be provided using the PRIVATE_KEY, CERTIFICATE, and 
 CACERT environment variables, respectively.
+
+To run without MTLS configured (for local testing purposes only, definitely
+no for production), export INSECURE_PUBLISHER with the value 1.
 
 For test purposes, [this README](https://github.com/d-smith/go-examples/tree/master/mtls-proxy) 
 has information on how to generate

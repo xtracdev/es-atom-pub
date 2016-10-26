@@ -138,9 +138,9 @@ func TestRetrieve(t *testing.T) {
 			}
 
 			router := mux.NewRouter()
-			router.HandleFunc("/notifications/{aggregate_id}/{version}", eventHandler)
+			router.HandleFunc(RetrieveEventHanderURI, eventHandler)
 
-			r, err := http.NewRequest("GET", fmt.Sprintf("/notifications/%s/%s", test.aggregateId, test.version), nil)
+			r, err := http.NewRequest("GET", fmt.Sprintf("/events/%s/%s", test.aggregateId, test.version), nil)
 			assert.Nil(t, err)
 			w := httptest.NewRecorder()
 
@@ -342,9 +342,9 @@ func TestRecentFeedHandler(t *testing.T) {
 
 			//Set up the router, route the request
 			router := mux.NewRouter()
-			router.HandleFunc("/notifications/recent", eventHandler)
+			router.HandleFunc(RecentHandlerURI, eventHandler)
 
-			r, err := http.NewRequest("GET", "/notifications/recent", nil)
+			r, err := http.NewRequest("GET", RecentHandlerURI, nil)
 			assert.Nil(t, err)
 			w := httptest.NewRecorder()
 
@@ -622,7 +622,7 @@ func TestRetrieveArchiveHandler(t *testing.T) {
 				//A bit artificial...
 				router.HandleFunc("/notifications/", archiveHandler)
 			} else {
-				router.HandleFunc("/notifications/{feedid}", archiveHandler)
+				router.HandleFunc(ArchiveHandlerURI, archiveHandler)
 			}
 
 			var testUri = fmt.Sprintf("/notifications/%s", test.feedid)

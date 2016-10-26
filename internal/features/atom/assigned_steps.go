@@ -93,7 +93,7 @@ func init() {
 		}
 
 		router := mux.NewRouter()
-		router.HandleFunc("/notifications/{feedid}", archiveHandler)
+		router.HandleFunc(atompub.ArchiveHandlerURI, archiveHandler)
 
 		r, err := http.NewRequest("GET", fmt.Sprintf("/notifications/%s", feedID), nil)
 		assert.Nil(T, err)
@@ -210,7 +210,7 @@ func init() {
 		}
 
 		router := mux.NewRouter()
-		router.HandleFunc("/notifications/{feedid}", archiveHandler)
+		router.HandleFunc(atompub.ArchiveHandlerURI, archiveHandler)
 
 		r, err := http.NewRequest("GET", fmt.Sprintf("/notifications/%s", feedID), nil)
 		assert.Nil(T, err)
@@ -281,9 +281,9 @@ func init() {
 		eventIDParts := strings.Split(eventID, ":")
 
 		router := mux.NewRouter()
-		router.HandleFunc("/notifications/{aggregate_id}/{version}", eventHandler)
+		router.HandleFunc(atompub.RetrieveEventHanderURI, eventHandler)
 
-		eventResource := fmt.Sprintf("/notifications/%s/%s", eventIDParts[2], eventIDParts[3])
+		eventResource := fmt.Sprintf("/events/%s/%s", eventIDParts[2], eventIDParts[3])
 		log.Infof("Retrieve event via %s", eventResource)
 		r, err := http.NewRequest("GET", eventResource, nil)
 		assert.Nil(T, err)
