@@ -13,5 +13,6 @@ containerbin:
 	go get github.com/xtracdev/es-atom-data
 	go get golang.org/x/tools/blog/atom
 	go get github.com/xtracdev/es-atom-pub
+	go get github.com/xtracdev/tlsconfig
 	go test
 	go build -o atompub

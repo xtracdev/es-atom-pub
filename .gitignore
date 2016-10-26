@@ -2,5 +2,10 @@ setenv
 cmd/setenv
 cmd/proxy/setenv
 coverage.out
-cmd/cert.pem
-cmd/key.pem
+cmd/atompub
+*.crt
+*.key
+*.csr
+cmd/certs
+apt.conf
+.env

@@ -146,3 +146,6 @@ $ docker network inspect foo
 ]
 </pre>
 
+Note that when using Docker compose, a docker network for the assembly of containers defined
+in the compose file is created automatically on docker-compose up, and is removed
+on docker-compose down.

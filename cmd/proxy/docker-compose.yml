@@ -13,10 +13,18 @@ services:
       - DB_HOST=${DB_HOST}
       - DB_PORT=${DB_PORT}
       - DB_SVC=${DB_SVC}
+      - PRIVATE_KEY=${PRIVATE_KEY}
+      - CERTIFICATE=${CERTIFICATE}
+      - CACERT=${CACERT}
+    volumes:
+      - ./atompubcerts:/certs
 
   nginxproxy:
-    image: nginx
+    image: xtracdev/nginxproxy
     volumes:
       - ./rp.conf:/etc/nginx/nginx.conf
+      - ./nginx-certs:/tmp/certs
     ports:
-      - "5000:5000" 
+      - "5000:5000"
+    depends_on:
+      - "atomfeedpub"
