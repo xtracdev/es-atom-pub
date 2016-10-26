@@ -16,7 +16,7 @@ func main() {
 	}
 
 	log.Println("get tls config")
-	config, err := tlsconfig.GetTlsConfiguration(os.Args[1], os.Args[2], os.Args[3])
+	config, err := tlsconfig.GetTLSConfiguration(os.Args[1], os.Args[2], os.Args[3])
 	if err != nil {
 		log.Fatal(err.Error())
 	}

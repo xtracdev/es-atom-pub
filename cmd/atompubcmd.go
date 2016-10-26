@@ -127,7 +127,7 @@ func main() {
 	if feedConfig.secure {
 		log.Info("Configure secure server")
 		log.Info("Read key and certs; form TLC config")
-		tlsConfig, err := tlsconfig.GetTlsConfiguration(
+		tlsConfig, err := tlsconfig.GetTLSConfiguration(
 			feedConfig.privateKey,
 			feedConfig.certfificate,
 			feedConfig.caCert,
