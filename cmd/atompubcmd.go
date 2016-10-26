@@ -12,7 +12,6 @@ import (
 	"os"
 )
 
-
 var insecureConfigBanner = `
 
  __  .__   __.      _______. _______   ______  __    __  .______       _______

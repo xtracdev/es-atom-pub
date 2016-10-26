@@ -22,8 +22,8 @@ var ErrBadDBConnection = errors.New("Nil db passed to factory method")
 //URIs assumed by handlers - these are fixed as they embed references relative to the URIs
 //used in this package
 const (
-	RecentHandlerURI = "/notifications/recent"
-	ArchiveHandlerURI = "/notifications/{feedId}"
+	RecentHandlerURI       = "/notifications/recent"
+	ArchiveHandlerURI      = "/notifications/{feedId}"
 	RetrieveEventHanderURI = "/events/{aggregateId}/{version}"
 )
 
@@ -38,7 +38,7 @@ type EventStoreContent struct {
 }
 
 //Add the retrieved events for a given feed to the atom feed structure
-func addItemsToFeed(feed *atom.Feed, events []atomdata.TimestampedEvent, linkhostport string) {
+func addItemsToFeed(feed *atom.Feed, events []atomdata.TimestampedEvent, linkhostport, proto string) {
 
 	for _, event := range events {
 
@@ -63,7 +63,7 @@ func addItemsToFeed(feed *atom.Feed, events []atomdata.TimestampedEvent, linkhos
 
 		link := atom.Link{
 			Rel:  "self",
-			Href: fmt.Sprintf("http://%s/notifications/%s/%d", linkhostport, event.Source, event.Version),
+			Href: fmt.Sprintf("%s://%s/notifications/%s/%d", proto, linkhostport, event.Source, event.Version),
 		}
 
 		entry.Link = append(entry.Link, link)
@@ -148,13 +148,18 @@ func NewRecentHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWri
 			Updated: atom.TimeStr(time.Now().Format(time.RFC3339)),
 		}
 
+		var proto = "https"
+		if req.TLS == nil {
+			proto = "http"
+		}
+
 		self := atom.Link{
-			Href: fmt.Sprintf("http://%s/notifications/recent", linkhostport),
+			Href: fmt.Sprintf("%s://%s/notifications/recent", proto, linkhostport),
 			Rel:  "self",
 		}
 
 		via := atom.Link{
-			Href: fmt.Sprintf("http://%s/notifications/recent", linkhostport),
+			Href: fmt.Sprintf("%s://%s/notifications/recent", proto, linkhostport),
 			Rel:  "related",
 		}
 
@@ -163,13 +168,13 @@ func NewRecentHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWri
 
 		if latestFeed != "" {
 			previous := atom.Link{
-				Href: fmt.Sprintf("http://%s/notifications/%s", linkhostport, latestFeed),
+				Href: fmt.Sprintf("%s://%s/notifications/%s", proto, linkhostport, latestFeed),
 				Rel:  "prev-archive",
 			}
 			feed.Link = append(feed.Link, previous)
 		}
 
-		addItemsToFeed(&feed, events, linkhostport)
+		addItemsToFeed(&feed, events, linkhostport, proto)
 
 		out, err := xml.Marshal(&feed)
 		if err != nil {
@@ -246,8 +251,13 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 			ID:    feedID,
 		}
 
+		var proto = "https"
+		if req.TLS == nil {
+			proto = "http"
+		}
+
 		self := atom.Link{
-			Href: fmt.Sprintf("http://%s/notifications/%s", linkhostport, feedID),
+			Href: fmt.Sprintf("%s://%s/notifications/%s", proto, linkhostport, feedID),
 			Rel:  "self",
 		}
 
@@ -255,7 +265,7 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 
 		if previousFeed.Valid {
 			feed.Link = append(feed.Link, atom.Link{
-				Href: fmt.Sprintf("http://%s/notifications/%s", linkhostport, previousFeed.String),
+				Href: fmt.Sprintf("%s://%s/notifications/%s", proto, linkhostport, previousFeed.String),
 				Rel:  "prev-archive",
 			})
 		}
@@ -268,11 +278,11 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 		}
 
 		feed.Link = append(feed.Link, atom.Link{
-			Href: fmt.Sprintf("http://%s/notifications/%s", linkhostport, next),
+			Href: fmt.Sprintf("%s://%s/notifications/%s", proto, linkhostport, next),
 			Rel:  "next-archive",
 		})
 
-		addItemsToFeed(&feed, latestFeed, linkhostport)
+		addItemsToFeed(&feed, latestFeed, linkhostport, proto)
 
 		out, err := xml.Marshal(&feed)
 		if err != nil {
