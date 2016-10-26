@@ -11,7 +11,7 @@ import (
 
 func main() {
 	if len(os.Args) < 5 {
-		fmt.Println("Need four args: client key file, client cert file, ca cert file, emdpoint")
+		fmt.Println("Need four args: client key file, client cert file, ca cert file, endpoint")
 		os.Exit(1)
 	}
 
