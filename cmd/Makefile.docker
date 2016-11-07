@@ -1,6 +1,6 @@
 containerbin:
 	go get github.com/Sirupsen/logrus
-	export PKG_CONFIG_PATH=$GOPATH/src/github.com/xtraclabs/es-atom-pub/pkgconfig/
+	export PKG_CONFIG_PATH=$(GOPATH)/src/github.com/xtracdev/es-atom-replicator/pkgconfig/
 	go get github.com/rjeczalik/pkgconfig/cmd/pkg-config
 	go get github.com/mattn/go-oci8
 	go get github.com/xtracdev/goes
@@ -12,7 +12,5 @@ containerbin:
 	go get github.com/gorilla/mux
 	go get github.com/xtracdev/es-atom-data
 	go get golang.org/x/tools/blog/atom
-	go get github.com/xtracdev/es-atom-pub
 	go get github.com/xtracdev/tlsconfig
-	go test
 	go build -o atompub

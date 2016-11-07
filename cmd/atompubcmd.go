@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto/tls"
-	"database/sql"
 	log "github.com/Sirupsen/logrus"
 	"github.com/gorilla/mux"
 	atompub "github.com/xtracdev/es-atom-pub"
@@ -98,17 +97,8 @@ func main() {
 	}
 
 	//Connect to DB
-	log.Info("Open SQL driver")
-	db, err := sql.Open("oci8", config.ConnectString())
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-
-	log.Info("Ping database")
-	err = db.Ping()
-	if err != nil {
-		log.Fatal(err.Error())
-	}
+	oraDB,err := oraconn.OpenAndConnect(config.ConnectString(), 100)
+	db := oraDB.DB
 
 	//Create handlers
 	log.Info("Create and register handlers")
