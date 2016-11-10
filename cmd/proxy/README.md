@@ -149,3 +149,34 @@ $ docker network inspect foo
 Note that when using Docker compose, a docker network for the assembly of containers defined
 in the compose file is created automatically on docker-compose up, and is removed
 on docker-compose down.
+
+## Docker Compose with Consul
+
+First, run some consul
+
+<pre>
+docker run -p 8500:8500 consul agent -dev -client 0.0.0.0
+</pre>
+
+Grab envconsul from [this repository](https://github.com/hashicorp/envconsul).
+
+Seed the values needed to demo, e.g.
+
+<pre>
+curl -X PUT -d nginxproxy:5000 http://localhost:8500/v1/kv/devcenter/dc1/LINKHOST
+curl -X PUT -d :8000 http://localhost:8500/v1/kv/devcenter/dc1/LISTENADDR
+curl -X PUT -d esdbo http://localhost:8500/v1/kv/devcenter/dc1/DB_USER
+curl -X PUT -d password http://localhost:8500/v1/kv/devcenter/dc1/DB_PASSWORD
+curl -X PUT -d 10.24.118.2 http://localhost:8500/v1/kv/devcenter/dc1/DB_HOST
+curl -X PUT -d 1521 http://localhost:8500/v1/kv/devcenter/dc1/DB_PORT
+curl -X PUT -d xe.oracle.docker http://localhost:8500/v1/kv/devcenter/dc1/DB_SVC
+curl -X PUT -d /certs/atomfeedpub.key http://localhost:8500/v1/kv/devcenter/dc1/PRIVATE_KEY
+curl -X PUT -d /certs/atomfeedpub.crt http://localhost:8500/v1/kv/devcenter/dc1/CERTIFICATE
+curl -X PUT -d /certs/ca.crt http://localhost:8500/v1/kv/devcenter/dc1/CACERT
+</pre>
+
+Then run it:
+
+<pre>
+./envconsul -prefix devcenter/dc1 env docker-compose up
+</pre>

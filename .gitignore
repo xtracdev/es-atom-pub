@@ -9,3 +9,5 @@ cmd/atompub
 cmd/certs
 apt.conf
 .env
+.env.bak
+envconsul
