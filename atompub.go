@@ -75,7 +75,7 @@ func addItemsToFeed(feed *atom.Feed, events []atomdata.TimestampedEvent, linkhos
 
 //Configure where telemery data does. Currently this can be send via UDP to a listener, or can be buffered
 //internally and dumped via a signal.
-func configureStatsD() {
+func ConfigureStatsD() {
 	statsdEndpoint := os.Getenv("STATSD_ENDPOINT")
 	log.Infof("STATSD_ENDPOINT: %s", statsdEndpoint)
 

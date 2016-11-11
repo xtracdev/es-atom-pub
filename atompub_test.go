@@ -23,7 +23,7 @@ import (
 func TestRetrieve(t *testing.T) {
 
 	os.Setenv("STATSD_ENDPOINT", "")
-	configureStatsD()
+	ConfigureStatsD()
 	ts := time.Now()
 
 	var retrieveTests = []struct {
@@ -223,7 +223,7 @@ func TestRecentFeedHandler(t *testing.T) {
 		}
 	}()
 
-	configureStatsD()
+	ConfigureStatsD()
 
 	ts := time.Now()
 

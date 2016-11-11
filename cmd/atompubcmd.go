@@ -45,6 +45,8 @@ func newAtomFeedPubConfig() *atomFeedPubConfig {
 		configErr = true
 	}
 
+	atompub.ConfigureStatsD()
+
 	//Load the TLS config from the environment. If INSECURE_PUBLISHER is present
 	//in the environment and set to 1 we create a non secured transport, otherwise
 	//if is assumed that a secure transport is desired and the rest of the
