@@ -16,12 +16,9 @@ services:
       - PRIVATE_KEY=${PRIVATE_KEY}
       - CERTIFICATE=${CERTIFICATE}
       - CACERT=${CACERT}
+      - STATSD_ENDPOINT=${STATSD_ENDPOINT}
     volumes:
       - ./atompubcerts:/certs
-    logging:
-      driver: syslog
-    depends_on:
-      - "sumo"
 
   nginxproxy:
     image: xtracdev/nginxproxy
@@ -30,19 +27,22 @@ services:
       - ./nginx-certs:/tmp/certs
     ports:
       - "5000:5000"
-    logging:
-      driver: syslog
     depends_on:
-      - "sumo"
       - "atomfeedpub"
 
-  sumo:
-    image: sumologic/collector:latest-logging-driver-syslog
+  logspout:
+    image: raychaser/logspout-http:latest
     volumes:
-      - /var/log/syslog:/syslog
+      - /var/run/docker.sock:/tmp/docker.sock
     environment:
-      - SUMO_PROXY_HOST=${SUMO_PROXY_HOST}
-      - SUMO_PROXY_PORT=${SUMO_PROXY_PORT}
-      - SUMO_COLLECTOR_NAME=${SUMO_COLLECTOR_NAME}
-      - SUMO_ACCESS_ID=${SUMO_ACCESS_ID}
-      - SUMO_ACCESS_KEY=${SUMO_ACCESS_KEY}
+      - LOGSPOUT=ignore
+      - SUMO_HTTP_TOKEN=${SUMO_HTTP_TOKEN}
+      - HTTP_PROXY=${HTTP_PROXY}
+      - DEBUG=1
+    command: https://endpoint1.collection.us2.sumologic.com?http.path=/receiver/v1/http/$SUMO_HTTP_TOKEN\&http.proxy=$HTTP_PROXY\&http.gzip=true\&http.crash=false
+
+  syslog:
+    image: factorish/syslog
+    ports:
+      - 1515:514/udp
+    entrypoint: /usr/bin/syslog -t udp
