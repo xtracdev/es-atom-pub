@@ -14,3 +14,6 @@ build:
 	go get golang.org/x/tools/blog/atom
 	go test
 	gucumber
+	cd cmd
+	go build -o atompub
+	cp atompub /buildhome
