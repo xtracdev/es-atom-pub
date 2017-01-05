@@ -16,6 +16,7 @@ deployment:
     commands:
       - cp ./cmd/Dockerfile .
       - ls
+      - docker version
       - docker build -t xtracdev/atompub .
       - docker login -u $DOCKER_USER -p $DOCKER_PASS
       - docker push xtracdev/atompub
