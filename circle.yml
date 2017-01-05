@@ -14,10 +14,7 @@ deployment:
   hub:
     branch: docker-image-build
     commands:
-      - cd cmd
-      - ls
-      - cp Dockerfile ../
-      - cd ..
+      - cp ./cmd/Dockerfile .
       - ls
       - docker build -t xtracdev/atompub .
       - docker login -u $DOCKER_USER -p $DOCKER_PASS
