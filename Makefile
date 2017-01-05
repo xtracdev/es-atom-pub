@@ -16,4 +16,4 @@ build:
 	gucumber
 	cd cmd
 	go build -o atompub
-	docker build -t xtracdev/atompub .
+    cp atompub /artifacts
