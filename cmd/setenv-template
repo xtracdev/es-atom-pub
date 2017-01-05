@@ -5,7 +5,6 @@ export DB_PORT=xxx
 export DB_SVC=xxx
 export LINKHOST=xxx
 export LISTENADDR=xxx
-export HCLISTENADDR=xxx
 export PRIVATE_KEY=xxx
 export CERTIFICATE=xxx
 export CACERT=xxx
