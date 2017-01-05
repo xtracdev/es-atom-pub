@@ -9,3 +9,11 @@ dependencies:
 test:
   override:
     - echo 'test automation run as part of the docker build'
+
+deployment:
+  hub:
+    - cd cmd
+    - cp $CIRCLE_ARTIFACTS/atompub .
+    - docker build -t xtracdev/atompub .
+    - docker login -u $DOCKER_USER -p $DOCKER_PASS
+    - docker push xtracdev/atompub
