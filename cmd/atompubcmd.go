@@ -47,11 +47,8 @@ func newAtomFeedPubConfig() *atomFeedPubConfig {
 		configErr = true
 	}
 
-	config.hcListenerHostAndPort = os.Getenv("HCLISTENADDR")
-	if config.hcListenerHostAndPort == "" {
-		log.Println("Missing HCLISTENADDR environment variable value")
-		configErr = true
-	}
+	log.Info("This container exposes its docker health check on port 4567")
+	config.hcListenerHostAndPort = ":4567"
 
 	atompub.ConfigureStatsD()
 
@@ -152,6 +149,7 @@ func main() {
 		hcMux := http.NewServeMux()
 		healthCheck := makeHealthCheck(oraDB.DB)
 		hcMux.HandleFunc("/health", healthCheck)
+		log.Infof("Health check listening on %s", feedConfig.hcListenerHostAndPort)
 		http.ListenAndServe(feedConfig.hcListenerHostAndPort, hcMux)
 	}()
 
