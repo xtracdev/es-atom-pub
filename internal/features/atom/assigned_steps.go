@@ -49,9 +49,9 @@ func init() {
 		assert.Nil(T, err, "Failed to initialize atom publisher")
 
 		log.Info("clean out tables")
-		_, err = db.Exec("delete from atom_event")
+		_, err = db.Exec("delete from t_aeae_atom_event")
 		assert.Nil(T, err)
-		_, err = db.Exec("delete from feed")
+		_, err = db.Exec("delete from t_aefd_feed")
 		assert.Nil(T, err)
 
 		os.Setenv("FEED_THRESHOLD", "2")

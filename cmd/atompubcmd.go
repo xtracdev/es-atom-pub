@@ -9,6 +9,7 @@ import (
 	"github.com/xtracdev/tlsconfig"
 	"net/http"
 	"os"
+	"database/sql"
 )
 
 var insecureConfigBanner = `
@@ -22,12 +23,13 @@ var insecureConfigBanner = `
  `
 
 type atomFeedPubConfig struct {
-	linkhost            string
-	listenerHostAndPort string
-	secure              bool
-	privateKey          string
-	certificate         string
-	caCert              string
+	linkhost              string
+	listenerHostAndPort   string
+	hcListenerHostAndPort string
+	secure                bool
+	privateKey            string
+	certificate           string
+	caCert                string
 }
 
 func newAtomFeedPubConfig() *atomFeedPubConfig {
@@ -42,6 +44,12 @@ func newAtomFeedPubConfig() *atomFeedPubConfig {
 	config.listenerHostAndPort = os.Getenv("LISTENADDR")
 	if config.listenerHostAndPort == "" {
 		log.Println("Missing LISTENADDR environment variable value")
+		configErr = true
+	}
+
+	config.hcListenerHostAndPort = os.Getenv("HCLISTENADDR")
+	if config.hcListenerHostAndPort == "" {
+		log.Println("Missing HCLISTENADDR environment variable value")
 		configErr = true
 	}
 
@@ -86,6 +94,20 @@ func newAtomFeedPubConfig() *atomFeedPubConfig {
 	return config
 }
 
+func makeHealthCheck(db *sql.DB) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var one int
+		err := db.QueryRow("select 1 from dual").Scan(&one)
+		switch err {
+		case nil:
+			w.WriteHeader(http.StatusOK)
+		default:
+			log.Warnf("DB error on health check: %s", err.Error())
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}
+}
+
 func main() {
 
 	//Read atom pub config
@@ -125,6 +147,13 @@ func main() {
 	r.HandleFunc(atompub.RetrieveEventHanderURI, retrieveHandler)
 
 	var server *http.Server
+
+	go func() {
+		hcMux := http.NewServeMux()
+		healthCheck := makeHealthCheck(oraDB.DB)
+		hcMux.HandleFunc("/health", healthCheck)
+		http.ListenAndServe(feedConfig.hcListenerHostAndPort, hcMux)
+	}()
 
 	if feedConfig.secure {
 		log.Info("Configure secure server")
