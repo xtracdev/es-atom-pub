@@ -12,6 +12,7 @@ test:
 
 deployment:
   hub:
+    branch: master
     commands:
       - cd cmd
       - cp $CIRCLE_ARTIFACTS/atompub .
