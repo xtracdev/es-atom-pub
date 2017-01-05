@@ -15,6 +15,7 @@ deployment:
     branch: docker-image-build
     commands:
       - cd cmd
+      - ls
       - cp Dockerfile ../
       - cd ..
       - ls
