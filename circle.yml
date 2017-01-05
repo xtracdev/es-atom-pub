@@ -15,4 +15,4 @@ deployment:
     branch: docker-image-build
     commands:
       - ls
-      - aws s3 cp atompub s3://xt-circle-ci/es-atom-pub
+      - aws s3 cp atompub s3://xt-circle-ci/es-atom-pub/atompub
