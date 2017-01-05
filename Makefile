@@ -16,4 +16,4 @@ build:
 	gucumber
 	cd cmd
 	go build -o atompub
-	cp atompub /artifacts
+	cp atompub /buildhome
