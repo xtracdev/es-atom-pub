@@ -14,5 +14,6 @@ deployment:
   hub:
     branch: master
     commands:
+      - zip atompub.zip atompub buildspec.yml
       - ls
-      - aws s3 cp atompub s3://xt-circle-ci/es-atom-pub/atompub
+      - aws s3 cp atompub s3://xt-circle-ci/es-atom-pub/atompub.zip
