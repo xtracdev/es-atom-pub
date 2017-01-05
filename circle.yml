@@ -14,9 +14,5 @@ deployment:
   hub:
     branch: docker-image-build
     commands:
-      - cp ./cmd/Dockerfile .
       - ls
-      - docker version
-      - docker build -t xtracdev/atompub .
-      - docker login -u $DOCKER_USER -p $DOCKER_PASS
-      - docker push xtracdev/atompub
+      - aws s3 cp atompub s3://xt-circle-ci/es-atom-pub
