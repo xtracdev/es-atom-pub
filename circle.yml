@@ -12,7 +12,7 @@ test:
 
 deployment:
   hub:
-    branch: master
+    branch: docker-image-build
     commands:
       - cd cmd
       - cp $CIRCLE_ARTIFACTS/atompub .
