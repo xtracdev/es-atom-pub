@@ -12,7 +12,7 @@ test:
 
 deployment:
   hub:
-    branch: master
+    branch: docker-image-build
     commands:
       - zip atompub.zip atompub buildspec.yml
       - ls
