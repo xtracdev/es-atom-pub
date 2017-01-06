@@ -4,7 +4,7 @@ machine:
 
 dependencies:
   override:
-    - docker run --rm -v "$PWD":/go/src/github.com/xtracdev/es-atom-pub -v $HOME:/buildhome -e DB_USER=$DB_USER -e DB_PASSWORD=$DB_PASSWORD -e DB_HOST=$DB_HOST -e DB_PORT=$DB_PORT -e DB_SVC=$DB_SVC -w /go/src/github.com/xtracdev/es-atom-pub xtracdev/goora bash -c make
+    - docker run --rm -v "$PWD":/go/src/github.com/xtracdev/es-atom-pub -v "$CIRCLE_ARTIFACTS":/artifacts -v $HOME:/buildhome -e DB_USER=$DB_USER -e DB_PASSWORD=$DB_PASSWORD -e DB_HOST=$DB_HOST -e DB_PORT=$DB_PORT -e DB_SVC=$DB_SVC -w /go/src/github.com/xtracdev/es-atom-pub xtracdev/goora bash -c make
 
 test:
   override:
@@ -14,5 +14,6 @@ deployment:
   hub:
     branch: master
     commands:
-      - ls
-      - aws s3 cp atompub s3://xt-circle-ci/es-atom-pub/atompub
+      - cp cmd/Dockerfile .
+      - zip  atompub.zip Dockerfile atompub buildspec.yml
+      - aws s3 cp atompub.zip s3://xt-circle-ci/atompub.zip

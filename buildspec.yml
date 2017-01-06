@@ -1,0 +1,9 @@
+version: 0.1
+
+phases:
+  build:
+    commands:
+      - chmod +x atompub
+      - docker login -u $DOCKER_USER -p $DOCKER_PASS
+      - docker build -t xtracdev/atompub .
+      - docker push xtracdev/atompub
