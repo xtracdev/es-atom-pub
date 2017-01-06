@@ -16,5 +16,5 @@ deployment:
     commands:
       - cp cmd/Dockerfile .
       - ls
-      - zip Dockerfile atompub.zip atompub buildspec.yml
+      - zip  atompub.zip Dockerfile atompub buildspec.yml
       - aws s3 cp atompub.zip s3://xt-circle-ci/atompub.zip
