@@ -16,4 +16,4 @@ deployment:
     commands:
       - zip atompub.zip atompub buildspec.yml
       - ls
-      - aws s3 cp atompub.zip s3://xt-circle-ci/es-atom-pub/atompub.zip
+      - aws s3 cp atompub.zip s3://xt-circle-ci/atompub.zip
