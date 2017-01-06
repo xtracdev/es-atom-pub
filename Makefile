@@ -15,5 +15,5 @@ build:
 	go test
 	gucumber
 	cd cmd
-	GOOS=linux GOARCH=amd64 go build -o atompub
+	GOOS=linux go build -o atompub
 	cp atompub /buildhome
