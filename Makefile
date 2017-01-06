@@ -14,6 +14,6 @@ build:
 	go get golang.org/x/tools/blog/atom
 	go test
 	gucumber
-	cd cmd
-	GOOS=linux go build -o atompub
+	GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -o atompub ./cmd/
+	cp atompub /artifacts
 	cp atompub /buildhome

@@ -13,4 +13,4 @@ containerbin:
 	go get github.com/xtracdev/es-atom-data
 	go get golang.org/x/tools/blog/atom
 	go get github.com/xtracdev/tlsconfig
-	GOOS=linux GOARCH=amd64 go build -o atompub
+	go build -o atompub
