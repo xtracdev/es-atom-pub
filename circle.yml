@@ -15,7 +15,5 @@ deployment:
     branch: docker-image-build
     commands:
       - cp cmd/Dockerfile .
-      - chmod +x atompub
-      - ls -l
       - zip  atompub.zip Dockerfile atompub buildspec.yml
       - aws s3 cp atompub.zip s3://xt-circle-ci/atompub.zip
