@@ -4,6 +4,7 @@ machine:
 
 dependencies:
   override:
+    - echo $CIRCLE_BUILD_NUM > buildNo
     - docker run --rm -v "$PWD":/go/src/github.com/xtracdev/es-atom-pub -v "$CIRCLE_ARTIFACTS":/artifacts -v $HOME:/buildhome -e DB_USER=$DB_USER -e DB_PASSWORD=$DB_PASSWORD -e DB_HOST=$DB_HOST -e DB_PORT=$DB_PORT -e DB_SVC=$DB_SVC -w /go/src/github.com/xtracdev/es-atom-pub xtracdev/goora bash -c make
 
 test:
@@ -15,5 +16,5 @@ deployment:
     branch: master
     commands:
       - cp cmd/Dockerfile .
-      - zip  atompub.zip Dockerfile atompub buildspec.yml
+      - zip  atompub.zip Dockerfile atompub buildspec.yml buildNo
       - aws s3 cp atompub.zip s3://xt-circle-ci/atompub.zip
