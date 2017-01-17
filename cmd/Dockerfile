@@ -1,4 +1,4 @@
-FROM xtracdev/elcaro
+FROM xtracdev/elcaro:0.2.0
 
 COPY atompub /opt/
 EXPOSE 4567
