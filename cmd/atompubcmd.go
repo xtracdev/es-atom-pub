@@ -1,12 +1,10 @@
 package main
 
 import (
-	"crypto/tls"
 	log "github.com/Sirupsen/logrus"
 	"github.com/gorilla/mux"
 	atompub "github.com/xtracdev/es-atom-pub"
 	"github.com/xtracdev/oraconn"
-	"github.com/xtracdev/tlsconfig"
 	"net/http"
 	"os"
 	"database/sql"
@@ -27,9 +25,7 @@ type atomFeedPubConfig struct {
 	listenerHostAndPort   string
 	hcListenerHostAndPort string
 	secure                bool
-	privateKey            string
-	certificate           string
-	caCert                string
+	keyAlias	      string
 }
 
 func newAtomFeedPubConfig() *atomFeedPubConfig {
@@ -62,24 +58,11 @@ func newAtomFeedPubConfig() *atomFeedPubConfig {
 	} else {
 		config.secure = true
 
-		config.privateKey = os.Getenv("PRIVATE_KEY")
-		if config.privateKey == "" {
-			log.Println("Missing PRIVATE_KEY environment variable value - required for secure config")
+		config.keyAlias = os.Getenv("KEY_ALIAS")
+		if config.keyAlias == "" {
+			log.Println("Missing KEY_ALIAS environment variable value - required for secure config")
 			configErr = true
 		}
-
-		config.certificate = os.Getenv("CERTIFICATE")
-		if config.certificate == "" {
-			log.Println("Missing CERTIFICATE environment variable value - required for secure config")
-			configErr = true
-		}
-
-		config.caCert = os.Getenv("CACERT")
-		if config.caCert == "" {
-			log.Println("Missing CACERT environment variable value - required for secure config")
-			configErr = true
-		}
-
 	}
 
 	//Finally, if there were configuration errors, we're finished as we can't start with partial or
@@ -154,30 +137,7 @@ func main() {
 	}()
 
 	if feedConfig.secure {
-		log.Info("Configure secure server")
-		log.Info("Read key and certs; form TLC config")
-		tlsConfig, err := tlsconfig.GetTLSConfiguration(
-			feedConfig.privateKey,
-			feedConfig.certificate,
-			feedConfig.caCert,
-		)
 
-		if err != nil {
-			log.Fatal(err.Error())
-		}
-
-		log.Info("Config read, build server")
-
-		server = &http.Server{
-			Handler:      r,
-			Addr:         feedConfig.listenerHostAndPort,
-			TLSConfig:    tlsConfig,
-			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
-		}
-
-		//Listen up...
-		log.Info("Start server")
-		log.Fatal(server.ListenAndServeTLS(feedConfig.certificate, feedConfig.privateKey))
 
 	} else {
 		log.Println(insecureConfigBanner)
