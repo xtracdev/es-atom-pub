@@ -25,7 +25,6 @@ type atomFeedPubConfig struct {
 	listenerHostAndPort   string
 	hcListenerHostAndPort string
 	secure                bool
-	keyAlias	      string
 }
 
 func newAtomFeedPubConfig() *atomFeedPubConfig {
@@ -48,21 +47,10 @@ func newAtomFeedPubConfig() *atomFeedPubConfig {
 
 	atompub.ConfigureStatsD()
 
-	//Load the TLS config from the environment. If INSECURE_PUBLISHER is present
-	//in the environment and set to 1 we create a non secured transport, otherwise
-	//if is assumed that a secure transport is desired and the rest of the
-	//associated config will be present in the environment.
-	insecurePublisher := os.Getenv("INSECURE_PUBLISHER")
-	if insecurePublisher == "1" {
-		config.secure = false
-	} else {
-		config.secure = true
-
-		config.keyAlias = os.Getenv("KEY_ALIAS")
-		if config.keyAlias == "" {
-			log.Println("Missing KEY_ALIAS environment variable value - required for secure config")
-			configErr = true
-		}
+	keyAlias := os.Getenv("KEY_ALIAS")
+	if keyAlias == "" {
+		log.Println("Missing KEY_ALIAS environment variable value - required for secure config")
+		log.Println(insecureConfigBanner)
 	}
 
 	//Finally, if there were configuration errors, we're finished as we can't start with partial or
@@ -74,16 +62,27 @@ func newAtomFeedPubConfig() *atomFeedPubConfig {
 	return config
 }
 
+func CheckDBConfig(db *sql.DB) error {
+	var one int
+	return db.QueryRow("select 1 from dual").Scan(&one)
+}
+
 func makeHealthCheck(db *sql.DB) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var one int
-		err := db.QueryRow("select 1 from dual").Scan(&one)
-		switch err {
-		case nil:
-			w.WriteHeader(http.StatusOK)
-		default:
-			log.Warnf("DB error on health check: %s", err.Error())
+		err := CheckDBConfig(db)
+		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
+			log.Warnf("DB error on health check: %s", err.Error())
+		}
+
+		err = atompub.CheckKMSConfig()
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Warnf("Error on KMS config health check: %s", err.Error())
+		}
+
+		if err != nil {
+			w.WriteHeader(http.StatusOK)
 		}
 	}
 }
@@ -136,21 +135,13 @@ func main() {
 		http.ListenAndServe(feedConfig.hcListenerHostAndPort, hcMux)
 	}()
 
-	if feedConfig.secure {
-
-
-	} else {
-		log.Println(insecureConfigBanner)
-		//Config server
-		log.Info("Configure non secure server")
-		server = &http.Server{
-			Handler: r,
-			Addr:    feedConfig.listenerHostAndPort,
-		}
-
-		//Listen up...
-		log.Info("Start server")
-		log.Fatal(server.ListenAndServe())
+	//Config server
+	server = &http.Server{
+		Handler: r,
+		Addr:    feedConfig.listenerHostAndPort,
 	}
 
+	//Listen up...
+	log.Info("Start server")
+	log.Fatal(server.ListenAndServe())
 }
