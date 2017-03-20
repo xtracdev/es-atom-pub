@@ -48,6 +48,15 @@ events to publish in the ora event store.
 Next, use pub.go in the es-data-pub cmd directoy to add the events to
 the feed and feed event tables used by this package.
 
+## Encryption
+
+This implementation supports encrypting the content part of the
+event using the AWS KMS. Install the [AWS SDK](https://aws.amazon.com/sdk-for-go/) via
+
+<pre>
+go get github.com/aws/aws-sdk-go/...
+</pre>
+
 
 ## Contributing
 

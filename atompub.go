@@ -15,6 +15,9 @@ import (
 	"os"
 	"strconv"
 	"time"
+	"github.com/aws/aws-sdk-go/service/kms"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
 )
 
 var ErrBadDBConnection = errors.New("Nil db passed to factory method")
@@ -25,6 +28,7 @@ const (
 	RecentHandlerURI       = "/notifications/recent"
 	ArchiveHandlerURI      = "/notifications/{feedId}"
 	RetrieveEventHanderURI = "/events/{aggregateId}/{version}"
+	KeyAliasRoot = "alias/"
 )
 
 //Used to serialize event store content when directly retrieving using aggregate id and version
@@ -37,17 +41,79 @@ type EventStoreContent struct {
 	Content     string    `xml:"content"`
 }
 
+//Are we configured to run in secure mode
+var keyAlias string
+var kmsSvc *kms.KMS
+
+
+func CheckKMSConfig() error {
+	if keyAlias == KeyAliasRoot {
+		return nil
+	}
+
+	_, err := encryptStuff(kmsSvc, []byte("test"), keyAlias)
+	if err != nil {
+		log.Warnf("Error in init test encrypt: %s - KMS config is unhealthy", err.Error())
+		return err
+	}
+
+	return nil
+}
+
+func init() {
+	alias := os.Getenv("KEY_ALIAS")
+	keyAlias = KeyAliasRoot + alias
+
+	if keyAlias != "" {
+		log.Infof("Key alias specified: %s", keyAlias)
+		log.Infof("AWS_REGION: %s", os.Getenv("AWS_REGION"))
+		log.Infof("AWS_PROFILE: %s", os.Getenv("AWS_PROFILE"))
+	}
+
+	sess := session.Must(session.NewSession())
+
+	kmsSvc = kms.New(sess)
+
+	CheckKMSConfig()
+}
+
+func encryptStuff(svc *kms.KMS, plainText []byte, alias string) ([]byte,error) {
+	params := &kms.EncryptInput{
+		KeyId:     aws.String(alias),
+		Plaintext: plainText,
+	}
+
+	resp, err:= svc.Encrypt(params)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.CiphertextBlob, nil
+}
+
 //Add the retrieved events for a given feed to the atom feed structure
-func addItemsToFeed(feed *atom.Feed, events []atomdata.TimestampedEvent, linkhostport, proto string) {
+func addItemsToFeed(feed *atom.Feed, events []atomdata.TimestampedEvent, linkhostport, proto string) error {
 
 	for _, event := range events {
 
-		//Here we can type assert without a check because the event array passed to this method
-		//was scanned from a driver.Value, which constrings the types that can be scanned and
-		//can convert those into []byte (or error out on the rows.Scan
-		payload := event.Payload.([]byte)
+		//Encrypt
+		var payloadBytes []byte
+		if keyAlias != KeyAliasRoot {
 
-		encodedPayload := base64.StdEncoding.EncodeToString(payload)
+			var encryptError error
+			payloadBytes,encryptError = encryptStuff(kmsSvc,event.Payload.([]byte),keyAlias)
+			if encryptError != nil {
+				if encryptError != nil {
+					log.Errorf("Unable to encrypt payload: %s", encryptError)
+				}
+				return encryptError
+			}
+
+		} else {
+			payloadBytes =  event.Payload.([]byte)
+		}
+
+		encodedPayload := base64.StdEncoding.EncodeToString(payloadBytes)
 
 		content := &atom.Text{
 			Type: event.TypeCode,
@@ -71,6 +137,8 @@ func addItemsToFeed(feed *atom.Feed, events []atomdata.TimestampedEvent, linkhos
 		feed.Entry = append(feed.Entry, entry)
 
 	}
+
+	return nil
 }
 
 //Configure where telemery data does. Currently this can be send via UDP to a listener, or can be buffered
@@ -174,7 +242,13 @@ func NewRecentHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWri
 			feed.Link = append(feed.Link, previous)
 		}
 
-		addItemsToFeed(&feed, events, linkhostport, proto)
+		err = addItemsToFeed(&feed, events, linkhostport, proto)
+		if err != nil {
+			logTimingStats(svc, start, err)
+			log.Warnf("Error adding items to feed: %s", err.Error())
+			http.Error(rw, "Error adding items to feed", http.StatusInternalServerError)
+			return
+		}
 
 		out, err := xml.Marshal(&feed)
 		if err != nil {
@@ -282,7 +356,13 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 			Rel:  "next-archive",
 		})
 
-		addItemsToFeed(&feed, latestFeed, linkhostport, proto)
+		err = addItemsToFeed(&feed, latestFeed, linkhostport, proto)
+		if err != nil {
+			logTimingStats(svc, start, err)
+			log.Warnf("Error adding items to feed: %s", err.Error())
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 		out, err := xml.Marshal(&feed)
 		if err != nil {
