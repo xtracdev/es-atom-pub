@@ -37,6 +37,8 @@ func init() {
 		initFailed = true
 	}
 
+	os.Unsetenv(atompub.KeyAlias)
+
 	Given(`^a single feed with events assigned to it$`, func() {
 		log.Info("check init")
 		if initFailed {

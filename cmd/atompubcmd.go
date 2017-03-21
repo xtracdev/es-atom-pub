@@ -66,7 +66,7 @@ func newAtomFeedPubConfig() *atomFeedPubConfig {
 
 	atompub.ConfigureStatsD()
 
-	keyAlias := os.Getenv("KEY_ALIAS")
+	keyAlias := os.Getenv(atompub.KeyAlias)
 	if keyAlias == "" {
 		log.Println("Missing KEY_ALIAS environment variable value - required for secure config")
 		log.Println(insecureConfigBanner)
@@ -88,19 +88,22 @@ func CheckDBConfig(db *sql.DB) error {
 
 func makeHealthCheck(db *sql.DB) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		wroteHeader := false
 		err := CheckDBConfig(db)
 		if err != nil {
+			wroteHeader = true
 			w.WriteHeader(http.StatusInternalServerError)
 			log.Warnf("DB error on health check: %s", err.Error())
 		}
 
 		err = atompub.CheckKMSConfig()
 		if err != nil {
+			wroteHeader = true
 			w.WriteHeader(http.StatusInternalServerError)
 			log.Warnf("Error on KMS config health check: %s", err.Error())
 		}
 
-		if err != nil {
+		if wroteHeader == false {
 			w.WriteHeader(http.StatusOK)
 		}
 	}

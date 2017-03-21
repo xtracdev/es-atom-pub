@@ -48,6 +48,9 @@ events to publish in the ora event store.
 Next, use pub.go in the es-data-pub cmd directoy to add the events to
 the feed and feed event tables used by this package.
 
+Note that when you run the gucumber tests it will wipe out your events.
+You probably don't want to run those against a production event store.
+
 ## Encryption
 
 This implementation supports encrypting the content part of the

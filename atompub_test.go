@@ -23,6 +23,7 @@ import (
 func TestRetrieve(t *testing.T) {
 
 	os.Setenv("STATSD_ENDPOINT", "")
+	os.Unsetenv("KEY_ALIAS")
 	ConfigureStatsD()
 	ts := time.Now()
 
@@ -206,6 +207,7 @@ func TestRecentFeedHandler(t *testing.T) {
 	log.Infof("addr: %v", ln.LocalAddr())
 
 	os.Setenv("STATSD_ENDPOINT", ln.LocalAddr().String())
+	os.Unsetenv("KEY_ALIAS")
 
 	//Run this in the background - end of test will kill it. This is to let us have something to
 	//catch any writes of statsd data. Since the data is written using udp we might not see anything
@@ -392,6 +394,7 @@ func TestRecentFeedHandler(t *testing.T) {
 }
 
 func TestRetrieveArchiveHandler(t *testing.T) {
+	os.Unsetenv("KEY_ALIAS")
 	ts := time.Now()
 
 	var archiveTests = []struct {

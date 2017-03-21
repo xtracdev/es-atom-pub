@@ -33,6 +33,7 @@ const (
 	ArchiveHandlerURI      = "/notifications/{feedId}"
 	RetrieveEventHanderURI = "/events/{aggregateId}/{version}"
 	KeyAliasRoot           = "alias/"
+	KeyAlias               = "KEY_ALIAS"
 )
 
 //Used to serialize event store content when directly retrieving using aggregate id and version
@@ -46,10 +47,10 @@ type EventStoreContent struct {
 }
 
 //Are we configured to run in secure mode
-var keyAlias string
 var kmsSvc *kms.KMS
 
 func CheckKMSConfig() error {
+	keyAlias := KeyAliasRoot + os.Getenv(KeyAlias)
 	if keyAlias == KeyAliasRoot {
 		return nil
 	}
@@ -64,8 +65,7 @@ func CheckKMSConfig() error {
 }
 
 func init() {
-	alias := os.Getenv("KEY_ALIAS")
-	keyAlias = KeyAliasRoot + alias
+	keyAlias := KeyAliasRoot + os.Getenv(KeyAlias)
 
 	if keyAlias != "" {
 		log.Infof("Key alias specified: %s", keyAlias)
@@ -96,7 +96,7 @@ func encryptStuff(svc *kms.KMS, plainText []byte, alias string) ([]byte, error) 
 
 //Encrypt from cryptopasta commit bc3a108a5776376aa811eea34b93383837994340
 //used via the CC0 license. See https://github.com/gtank/cryptopasta
-func Encrypt(plaintext []byte, key *[32]byte) (ciphertext []byte, err error) {
+func Encrypt(plaintext []byte, key *[32]byte) ([]byte, error) {
 	block, err := aes.NewCipher(key[:])
 	if err != nil {
 		return nil, err
@@ -192,13 +192,14 @@ func logTimingStats(svc string, start time.Time, err error) {
 //KEY_ALIAS set to something. Here we obtain the encryption key from KMS, and append the
 //encrypted version of the key to the encoded output.
 func encryptOutput(svc *kms.KMS, out []byte) ([]byte, error) {
+	keyAlias := KeyAliasRoot + os.Getenv(KeyAlias)
 	if keyAlias == KeyAliasRoot {
 		return out, nil
 	}
 
 	//Get the encryption keys
 	params := &kms.GenerateDataKeyInput{
-		KeyId:   aws.String("alias/keyalias"), // Required
+		KeyId:   aws.String(keyAlias), // Required
 		KeySpec: aws.String("AES_256"),
 	}
 
