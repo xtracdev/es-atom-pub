@@ -103,7 +103,7 @@ func main() {
 
 	feedUrl := os.Args[1] + "/notifications/recent"
 
-	for i:= 0; i < 10000; i++ {
+	for i:= 0; i < 1; i++ {
 		fmt.Println("Iteration ", i)
 		bytes, err := readRecent(feedUrl)
 		if err != nil {
