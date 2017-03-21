@@ -1,6 +1,9 @@
 package atompubsvc
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
 	"encoding/xml"
@@ -8,20 +11,17 @@ import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/armon/go-metrics"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/gorilla/mux"
 	atomdata "github.com/xtracdev/es-atom-data"
 	"golang.org/x/tools/blog/atom"
+	"io"
 	"net/http"
 	"os"
 	"strconv"
 	"time"
-	"github.com/aws/aws-sdk-go/service/kms"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
-	"io"
 )
 
 var ErrBadDBConnection = errors.New("Nil db passed to factory method")
@@ -32,7 +32,7 @@ const (
 	RecentHandlerURI       = "/notifications/recent"
 	ArchiveHandlerURI      = "/notifications/{feedId}"
 	RetrieveEventHanderURI = "/events/{aggregateId}/{version}"
-	KeyAliasRoot = "alias/"
+	KeyAliasRoot           = "alias/"
 )
 
 //Used to serialize event store content when directly retrieving using aggregate id and version
@@ -48,7 +48,6 @@ type EventStoreContent struct {
 //Are we configured to run in secure mode
 var keyAlias string
 var kmsSvc *kms.KMS
-
 
 func CheckKMSConfig() error {
 	if keyAlias == KeyAliasRoot {
@@ -81,13 +80,13 @@ func init() {
 	CheckKMSConfig()
 }
 
-func encryptStuff(svc *kms.KMS, plainText []byte, alias string) ([]byte,error) {
+func encryptStuff(svc *kms.KMS, plainText []byte, alias string) ([]byte, error) {
 	params := &kms.EncryptInput{
 		KeyId:     aws.String(alias),
 		Plaintext: plainText,
 	}
 
-	resp, err:= svc.Encrypt(params)
+	resp, err := svc.Encrypt(params)
 	if err != nil {
 		return nil, err
 	}
@@ -117,13 +116,10 @@ func Encrypt(plaintext []byte, key *[32]byte) (ciphertext []byte, err error) {
 	return gcm.Seal(nonce, nonce, plaintext, nil), nil
 }
 
-
-
 //Add the retrieved events for a given feed to the atom feed structure
-func addItemsToFeed(feed *atom.Feed, events []atomdata.TimestampedEvent, linkhostport, proto string)  {
+func addItemsToFeed(feed *atom.Feed, events []atomdata.TimestampedEvent, linkhostport, proto string) {
 
 	for _, event := range events {
-
 
 		encodedPayload := base64.StdEncoding.EncodeToString(event.Payload.([]byte))
 
@@ -195,28 +191,27 @@ func logTimingStats(svc string, start time.Time, err error) {
 //Encrypt output encrypts the output is indicated by the configuration settings, e.g.
 //KEY_ALIAS set to something. Here we obtain the encryption key from KMS, and append the
 //encrypted version of the key to the encoded output.
-func encryptOutput(svc *kms.KMS,out []byte)([]byte,error) {
+func encryptOutput(svc *kms.KMS, out []byte) ([]byte, error) {
 	if keyAlias == KeyAliasRoot {
-		return out,nil
+		return out, nil
 	}
 
 	//Get the encryption keys
 	params := &kms.GenerateDataKeyInput{
-		KeyId: aws.String("alias/keyalias"), // Required
-		KeySpec:       aws.String("AES_256"),
+		KeyId:   aws.String("alias/keyalias"), // Required
+		KeySpec: aws.String("AES_256"),
 	}
 
 	resp, err := svc.GenerateDataKey(params)
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
 
-
 	key := [32]byte{}
-	copy(key[:],resp.Plaintext[0:32])
+	copy(key[:], resp.Plaintext[0:32])
 
 	//Encrypt the output
-	encrypted,err := Encrypt(out,&key)
+	encrypted, err := Encrypt(out, &key)
 	if err != nil {
 		return nil, err
 	}
@@ -232,9 +227,9 @@ func encryptOutput(svc *kms.KMS,out []byte)([]byte,error) {
 	//CMK before the payload can be decrypted with it
 	encodedKey := base64.StdEncoding.EncodeToString(resp.CiphertextBlob)
 
-	keyPlusText := fmt.Sprintf("%s::%s",encodedKey,encodedOut)
+	keyPlusText := fmt.Sprintf("%s::%s", encodedKey, encodedOut)
 
-	return []byte(keyPlusText),nil
+	return []byte(keyPlusText), nil
 }
 
 //NewRecentHandler instantiates the handler for retrieve recent notifications, which are those that have not
@@ -307,7 +302,7 @@ func NewRecentHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWri
 			return
 		}
 
-		encodedOut, err := encryptOutput(kmsSvc,out)
+		encodedOut, err := encryptOutput(kmsSvc, out)
 		if err != nil {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 			logTimingStats(svc, start, err)
@@ -422,6 +417,13 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 			return
 		}
 
+		encodedOut, err := encryptOutput(kmsSvc, out)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			logTimingStats(svc, start, err)
+			return
+		}
+
 		//For all feeds except recent, we can indicate the page can be cached for a long time,
 		//e.g. 30 days. The recent page is mutable so we don't indicate caching for it. We could
 		//potentially attempt to load it from this method via link traversal.
@@ -434,7 +436,7 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 		}
 
 		rw.Header().Add("Content-Type", "application/atom+xml")
-		rw.Write(out)
+		rw.Write(encodedOut)
 
 		logTimingStats(svc, start, nil)
 
@@ -492,11 +494,18 @@ func NewEventRetrieveHandler(db *sql.DB) (func(rw http.ResponseWriter, req *http
 			return
 		}
 
+		encodedOut, err := encryptOutput(kmsSvc, marshalled)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			logTimingStats(svc, start, err)
+			return
+		}
+
 		rw.Header().Add("Content-Type", "application/xml")
 		rw.Header().Add("ETag", fmt.Sprintf("%s:%d", aggregateID, version))
 		rw.Header().Add("Cache-Control", "max-age=2592000")
 
-		rw.Write(marshalled)
+		rw.Write(encodedOut)
 		logTimingStats(svc, start, nil)
 
 	}, nil

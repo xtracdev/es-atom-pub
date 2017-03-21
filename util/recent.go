@@ -1,17 +1,17 @@
 package main
 
 import (
-	"os"
-	"fmt"
-	"net/http"
-	"io/ioutil"
 	"crypto/aes"
 	"crypto/cipher"
-	"errors"
-	"strings"
 	"encoding/base64"
+	"errors"
+	"fmt"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kms"
+	"io/ioutil"
+	"net/http"
+	"os"
+	"strings"
 )
 
 //Decrypt from cryptopasta commit bc3a108a5776376aa811eea34b93383837994340
@@ -38,7 +38,7 @@ func Decrypt(ciphertext []byte, key *[32]byte) (plaintext []byte, err error) {
 	)
 }
 
-func readRecent(feedUrl string)([]byte, error) {
+func readRecent(feedUrl string) ([]byte, error) {
 	resp, err := http.Get(feedUrl)
 	if err != nil {
 		return nil, err
@@ -58,22 +58,22 @@ func readRecent(feedUrl string)([]byte, error) {
 	return bytes, nil
 }
 
-func decryptMessage(svc *kms.KMS, parts []string)([]byte,error) {
+func decryptMessage(svc *kms.KMS, parts []string) ([]byte, error) {
 	//Decode the key and the text
-	keyBytes,err := base64.StdEncoding.DecodeString(parts[0])
+	keyBytes, err := base64.StdEncoding.DecodeString(parts[0])
 	if err != nil {
 		return nil, err
 	}
 
 	//Get the encrypted bytes
-	msgBytes, err :=  base64.StdEncoding.DecodeString(parts[1])
+	msgBytes, err := base64.StdEncoding.DecodeString(parts[1])
 	if err != nil {
 		return nil, err
 	}
 
 	//Decrypt the encryption key
 	di := &kms.DecryptInput{
-		CiphertextBlob:keyBytes,
+		CiphertextBlob: keyBytes,
 	}
 
 	decryptedKey, err := svc.Decrypt(di)
@@ -103,7 +103,7 @@ func main() {
 
 	feedUrl := os.Args[1] + "/notifications/recent"
 
-	for i:= 0; i < 1; i++ {
+	for i := 0; i < 1; i++ {
 		fmt.Println("Iteration ", i)
 		bytes, err := readRecent(feedUrl)
 		if err != nil {

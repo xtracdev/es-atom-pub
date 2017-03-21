@@ -1,16 +1,16 @@
 package main
 
 import (
+	"database/sql"
+	"expvar"
+	_ "expvar"
+	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/gorilla/mux"
 	atompub "github.com/xtracdev/es-atom-pub"
 	"github.com/xtracdev/oraconn"
 	"net/http"
 	"os"
-	"database/sql"
-	 _ "expvar"
-	"fmt"
-	"expvar"
 )
 
 var insecureConfigBanner = `
@@ -119,7 +119,7 @@ func main() {
 	}
 
 	//Connect to DB
-	oraDB,err := oraconn.OpenAndConnect(config.ConnectString(), 100)
+	oraDB, err := oraconn.OpenAndConnect(config.ConnectString(), 100)
 	db := oraDB.DB
 
 	//Create handlers
