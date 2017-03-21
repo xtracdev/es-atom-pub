@@ -38,69 +38,47 @@ func Decrypt(ciphertext []byte, key *[32]byte) (plaintext []byte, err error) {
 	)
 }
 
-func main() {
-	//Read the recent notifications page  and decrypt the content for grins
-	if len(os.Args) != 2 {
-		fmt.Printf("Usage: %s url\n", os.Args[0])
-		return
-	}
-
-	resp, err := http.Get(os.Args[1] + "/notifications/recent")
+func readRecent(feedUrl string)([]byte, error) {
+	resp, err := http.Get(feedUrl)
 	if err != nil {
-		fmt.Printf("Error on get: %s", err.Error())
-		return
+		return nil, err
 	}
 
 	defer resp.Body.Close()
 
 	bytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Printf("Error on read: %s", err.Error())
-		return
+		return nil, err
 	}
-
-
 
 	if resp.StatusCode != http.StatusOK {
-		fmt.Println(string(bytes))
-		return
+		return nil, errors.New("Status was not ok")
 	}
 
-	//Now split the output into two parts - the encrypted key
-	//and the encrypted text
+	return bytes, nil
+}
 
-	parts := strings.Split(string(bytes),"::")
-	if len(parts) != 2 {
-		fmt.Println("Expected two parts, got ", len(parts))
-		return
-	}
-
+func decryptMessage(svc *kms.KMS, parts []string)([]byte,error) {
 	//Decode the key and the text
 	keyBytes,err := base64.StdEncoding.DecodeString(parts[0])
 	if err != nil {
-		fmt.Println("Error decoding key: ", err.Error())
-		return
+		return nil, err
 	}
 
 	//Get the encrypted bytes
 	msgBytes, err :=  base64.StdEncoding.DecodeString(parts[1])
 	if err != nil {
-		fmt.Println("Error decoding payload: ", err.Error())
-		return
+		return nil, err
 	}
 
-	//KMS set up
-	sess := session.Must(session.NewSession())
-	svc := kms.New(sess)
-
-	//Decrypt the encrytion key
+	//Decrypt the encryption key
 	di := &kms.DecryptInput{
 		CiphertextBlob:keyBytes,
 	}
+
 	decryptedKey, err := svc.Decrypt(di)
 	if err != nil {
-		fmt.Println(err.Error())
-		return
+		return nil, err
 	}
 
 	//Use the decrypted key to decrypt the message text
@@ -108,12 +86,45 @@ func main() {
 
 	copy(decryptKey[:], decryptedKey.Plaintext[0:32])
 
-	decypted, err := Decrypt(msgBytes, &decryptKey)
-	if err != nil {
-		fmt.Println(err.Error())
+	return Decrypt(msgBytes, &decryptKey)
+
+}
+
+func main() {
+	//Read the recent notifications page  and decrypt the content for grins
+	if len(os.Args) != 2 {
+		fmt.Printf("Usage: %s url\n", os.Args[0])
 		return
 	}
 
-	fmt.Println("Decrypted :\n", string(decypted))
+	//KMS set up
+	sess := session.Must(session.NewSession())
+	svc := kms.New(sess)
 
+	feedUrl := os.Args[1] + "/notifications/recent"
+
+	for i:= 0; i < 10000; i++ {
+		fmt.Println("Iteration ", i)
+		bytes, err := readRecent(feedUrl)
+		if err != nil {
+			fmt.Println(err)
+			break
+		}
+
+		//Now split the output into two parts - the encrypted key
+		//and the encrypted text
+		parts := strings.Split(string(bytes), "::")
+		if len(parts) != 2 {
+			fmt.Println("Expected two parts, got ", len(parts))
+			break
+		}
+
+		decypted, err := decryptMessage(svc, parts)
+		if err != nil {
+			fmt.Println(err)
+			break
+		}
+
+		fmt.Println("Decrypted :\n", string(decypted))
+	}
 }

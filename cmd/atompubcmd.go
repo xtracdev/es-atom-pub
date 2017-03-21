@@ -8,6 +8,9 @@ import (
 	"net/http"
 	"os"
 	"database/sql"
+	 _ "expvar"
+	"fmt"
+	"expvar"
 )
 
 var insecureConfigBanner = `
@@ -25,6 +28,22 @@ type atomFeedPubConfig struct {
 	listenerHostAndPort   string
 	hcListenerHostAndPort string
 	secure                bool
+}
+
+//expvar exports on the default service mux, which we are not using here. So the following
+//code from expvar.go has been lifter so we can add the expvar GET
+func expvarHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	fmt.Fprintf(w, "{\n")
+	first := true
+	expvar.Do(func(kv expvar.KeyValue) {
+		if !first {
+			fmt.Fprintf(w, ",\n")
+		}
+		first = false
+		fmt.Fprintf(w, "%q: %s", kv.Key, kv.Value)
+	})
+	fmt.Fprintf(w, "\n}\n")
 }
 
 func newAtomFeedPubConfig() *atomFeedPubConfig {
@@ -131,7 +150,8 @@ func main() {
 		hcMux := http.NewServeMux()
 		healthCheck := makeHealthCheck(oraDB.DB)
 		hcMux.HandleFunc("/health", healthCheck)
-		log.Infof("Health check listening on %s", feedConfig.hcListenerHostAndPort)
+		hcMux.HandleFunc("/debug/vars", expvarHandler)
+		log.Infof("Health check and expvars listening on %s", feedConfig.hcListenerHostAndPort)
 		http.ListenAndServe(feedConfig.hcListenerHostAndPort, hcMux)
 	}()
 
