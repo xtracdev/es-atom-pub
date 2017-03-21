@@ -18,6 +18,10 @@ import (
 	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"io"
 )
 
 var ErrBadDBConnection = errors.New("Nil db passed to factory method")
@@ -91,29 +95,37 @@ func encryptStuff(svc *kms.KMS, plainText []byte, alias string) ([]byte,error) {
 	return resp.CiphertextBlob, nil
 }
 
+//Encrypt from cryptopasta commit bc3a108a5776376aa811eea34b93383837994340
+//used via the CC0 license. See https://github.com/gtank/cryptopasta
+func Encrypt(plaintext []byte, key *[32]byte) (ciphertext []byte, err error) {
+	block, err := aes.NewCipher(key[:])
+	if err != nil {
+		return nil, err
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+
+	nonce := make([]byte, gcm.NonceSize())
+	_, err = io.ReadFull(rand.Reader, nonce)
+	if err != nil {
+		return nil, err
+	}
+
+	return gcm.Seal(nonce, nonce, plaintext, nil), nil
+}
+
+
+
 //Add the retrieved events for a given feed to the atom feed structure
-func addItemsToFeed(feed *atom.Feed, events []atomdata.TimestampedEvent, linkhostport, proto string) error {
+func addItemsToFeed(feed *atom.Feed, events []atomdata.TimestampedEvent, linkhostport, proto string)  {
 
 	for _, event := range events {
 
-		//Encrypt
-		var payloadBytes []byte
-		if keyAlias != KeyAliasRoot {
 
-			var encryptError error
-			payloadBytes,encryptError = encryptStuff(kmsSvc,event.Payload.([]byte),keyAlias)
-			if encryptError != nil {
-				if encryptError != nil {
-					log.Errorf("Unable to encrypt payload: %s", encryptError)
-				}
-				return encryptError
-			}
-
-		} else {
-			payloadBytes =  event.Payload.([]byte)
-		}
-
-		encodedPayload := base64.StdEncoding.EncodeToString(payloadBytes)
+		encodedPayload := base64.StdEncoding.EncodeToString(event.Payload.([]byte))
 
 		content := &atom.Text{
 			Type: event.TypeCode,
@@ -138,7 +150,6 @@ func addItemsToFeed(feed *atom.Feed, events []atomdata.TimestampedEvent, linkhos
 
 	}
 
-	return nil
 }
 
 //Configure where telemery data does. Currently this can be send via UDP to a listener, or can be buffered
@@ -179,6 +190,51 @@ func logTimingStats(svc string, start time.Time, err error) {
 			metrics.IncrCounter(key, 1)
 		}
 	}(svc, duration, err)
+}
+
+//Encrypt output encrypts the output is indicated by the configuration settings, e.g.
+//KEY_ALIAS set to something. Here we obtain the encryption key from KMS, and append the
+//encrypted version of the key to the encoded output.
+func encryptOutput(svc *kms.KMS,out []byte)([]byte,error) {
+	if keyAlias == KeyAliasRoot {
+		return out,nil
+	}
+
+	//Get the encryption keys
+	params := &kms.GenerateDataKeyInput{
+		KeyId: aws.String("alias/keyalias"), // Required
+		KeySpec:       aws.String("AES_256"),
+	}
+
+	resp, err := svc.GenerateDataKey(params)
+	if err != nil {
+		return nil,err
+	}
+
+
+	key := [32]byte{}
+	copy(key[:],resp.Plaintext[0:32])
+
+	//Encrypt the output
+	encrypted,err := Encrypt(out,&key)
+	if err != nil {
+		return nil, err
+	}
+
+	//Purge the key from memory
+	key = [32]byte{}
+	resp.Plaintext = nil
+
+	//Encode the output
+	encodedOut := base64.StdEncoding.EncodeToString(encrypted)
+
+	//Encode the encryptedKey - this will have to be decrypted using the KMS
+	//CMK before the payload can be decrypted with it
+	encodedKey := base64.StdEncoding.EncodeToString(resp.CiphertextBlob)
+
+	keyPlusText := fmt.Sprintf("%s::%s",encodedKey,encodedOut)
+
+	return []byte(keyPlusText),nil
 }
 
 //NewRecentHandler instantiates the handler for retrieve recent notifications, which are those that have not
@@ -242,13 +298,7 @@ func NewRecentHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWri
 			feed.Link = append(feed.Link, previous)
 		}
 
-		err = addItemsToFeed(&feed, events, linkhostport, proto)
-		if err != nil {
-			logTimingStats(svc, start, err)
-			log.Warnf("Error adding items to feed: %s", err.Error())
-			http.Error(rw, "Error adding items to feed", http.StatusInternalServerError)
-			return
-		}
+		addItemsToFeed(&feed, events, linkhostport, proto)
 
 		out, err := xml.Marshal(&feed)
 		if err != nil {
@@ -257,9 +307,16 @@ func NewRecentHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWri
 			return
 		}
 
+		encodedOut, err := encryptOutput(kmsSvc,out)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			logTimingStats(svc, start, err)
+			return
+		}
+
 		rw.Header().Add("Cache-Control", "no-store")
 		rw.Header().Add("Content-Type", "application/atom+xml")
-		rw.Write(out)
+		rw.Write(encodedOut)
 		logTimingStats(svc, start, nil)
 	}, nil
 }
@@ -356,13 +413,7 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 			Rel:  "next-archive",
 		})
 
-		err = addItemsToFeed(&feed, latestFeed, linkhostport, proto)
-		if err != nil {
-			logTimingStats(svc, start, err)
-			log.Warnf("Error adding items to feed: %s", err.Error())
-			http.Error(rw, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		addItemsToFeed(&feed, latestFeed, linkhostport, proto)
 
 		out, err := xml.Marshal(&feed)
 		if err != nil {
