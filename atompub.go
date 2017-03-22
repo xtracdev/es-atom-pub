@@ -55,13 +55,13 @@ func CheckKMSConfig() error {
 		return nil
 	}
 
-	_, err := encryptStuff(kmsSvc, []byte("test"), keyAlias)
-	if err != nil {
-		log.Warnf("Error in init test encrypt: %s - KMS config is unhealthy", err.Error())
-		return err
+	params := &kms.GenerateDataKeyInput{
+		KeyId:   aws.String(keyAlias), // Required
+		KeySpec: aws.String("AES_256"),
 	}
 
-	return nil
+	_, err := kmsSvc.GenerateDataKey(params)
+	return err
 }
 
 func init() {
@@ -71,27 +71,23 @@ func init() {
 		log.Infof("Key alias specified: %s", keyAlias)
 		log.Infof("AWS_REGION: %s", os.Getenv("AWS_REGION"))
 		log.Infof("AWS_PROFILE: %s", os.Getenv("AWS_PROFILE"))
+
+		sess, err := session.NewSession()
+		if err == nil {
+			kmsSvc = kms.New(sess)
+
+			err = CheckKMSConfig()
+			if err != nil {
+				log.Errorf("Error instantiating AWS session: %s. Exiting.", err.Error())
+				os.Exit(1)
+			}
+		} else {
+			log.Infof("Error instantiating AWS session: %s. Exiting.", err.Error())
+			os.Exit(1)
+		}
+
 	}
 
-	sess := session.Must(session.NewSession())
-
-	kmsSvc = kms.New(sess)
-
-	CheckKMSConfig()
-}
-
-func encryptStuff(svc *kms.KMS, plainText []byte, alias string) ([]byte, error) {
-	params := &kms.EncryptInput{
-		KeyId:     aws.String(alias),
-		Plaintext: plainText,
-	}
-
-	resp, err := svc.Encrypt(params)
-	if err != nil {
-		return nil, err
-	}
-
-	return resp.CiphertextBlob, nil
 }
 
 //Encrypt from cryptopasta commit bc3a108a5776376aa811eea34b93383837994340
