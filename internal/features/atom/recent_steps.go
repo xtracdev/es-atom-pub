@@ -34,6 +34,8 @@ func init() {
 	var feed atom.Feed
 	var cacheControl string
 
+	os.Unsetenv(atompub.KeyAlias)
+
 	Given(`^some events not yet assigned to a feed$`, func() {
 		log.Info("check init")
 		if initFailed {

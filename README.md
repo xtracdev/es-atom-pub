@@ -42,11 +42,23 @@ create event store events that are exposed via this feed:
 * [cqrs-sample-pub](https://github.com/xtraclabs/cqrs-sample-pub)
 * [es-data-pub](https://github.com/xtracdev/es-data-pub)
 
-First, use genevent.go in the cqrs-sample-pub cmd directory to create some
+First, use genevent.go in the cqrs-sample-pub gen-sample-events directory to create some
 events to publish in the ora event store.
 
 Next, use pub.go in the es-data-pub cmd directoy to add the events to
 the feed and feed event tables used by this package.
+
+Note that when you run the gucumber tests it will wipe out your events.
+You probably don't want to run those against a production event store.
+
+## Encryption
+
+This implementation supports encrypting the content part of the
+event using the AWS KMS. Install the [AWS SDK](https://aws.amazon.com/sdk-for-go/) via
+
+<pre>
+go get github.com/aws/aws-sdk-go/...
+</pre>
 
 
 ## Contributing

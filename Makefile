@@ -12,6 +12,7 @@ build:
 	go get github.com/gorilla/mux
 	go get github.com/xtracdev/es-atom-data
 	go get golang.org/x/tools/blog/atom
+	go get github.com/aws/aws-sdk-go/...
 	go test
 	gucumber
 	go get github.com/xtracdev/tlsconfig

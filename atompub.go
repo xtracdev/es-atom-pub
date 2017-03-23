@@ -1,6 +1,9 @@
 package atompubsvc
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
 	"encoding/xml"
@@ -8,9 +11,13 @@ import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/armon/go-metrics"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/gorilla/mux"
 	atomdata "github.com/xtracdev/es-atom-data"
 	"golang.org/x/tools/blog/atom"
+	"io"
 	"net/http"
 	"os"
 	"strconv"
@@ -22,9 +29,12 @@ var ErrBadDBConnection = errors.New("Nil db passed to factory method")
 //URIs assumed by handlers - these are fixed as they embed references relative to the URIs
 //used in this package
 const (
+	PingURI                = "/ping"
 	RecentHandlerURI       = "/notifications/recent"
 	ArchiveHandlerURI      = "/notifications/{feedId}"
 	RetrieveEventHanderURI = "/events/{aggregateId}/{version}"
+	KeyAliasRoot           = "alias/"
+	KeyAlias               = "KEY_ALIAS"
 )
 
 //Used to serialize event store content when directly retrieving using aggregate id and version
@@ -37,17 +47,78 @@ type EventStoreContent struct {
 	Content     string    `xml:"content"`
 }
 
+//Are we configured to run in secure mode
+var kmsSvc *kms.KMS
+
+func CheckKMSConfig() error {
+	keyAlias := KeyAliasRoot + os.Getenv(KeyAlias)
+	if keyAlias == KeyAliasRoot {
+		return nil
+	}
+
+	params := &kms.GenerateDataKeyInput{
+		KeyId:   aws.String(keyAlias), // Required
+		KeySpec: aws.String("AES_256"),
+	}
+
+	_, err := kmsSvc.GenerateDataKey(params)
+	return err
+}
+
+func init() {
+	keyAlias := KeyAliasRoot + os.Getenv(KeyAlias)
+
+	if keyAlias != "" {
+		log.Infof("Key alias specified: %s", keyAlias)
+		log.Infof("AWS_REGION: %s", os.Getenv("AWS_REGION"))
+		log.Infof("AWS_PROFILE: %s", os.Getenv("AWS_PROFILE"))
+
+		sess, err := session.NewSession()
+		if err == nil {
+			kmsSvc = kms.New(sess)
+
+			err = CheckKMSConfig()
+			if err != nil {
+				log.Errorf("Error instantiating AWS session: %s. Exiting.", err.Error())
+				os.Exit(1)
+			}
+		} else {
+			log.Infof("Error instantiating AWS session: %s. Exiting.", err.Error())
+			os.Exit(1)
+		}
+
+	}
+
+}
+
+//Encrypt from cryptopasta commit bc3a108a5776376aa811eea34b93383837994340
+//used via the CC0 license. See https://github.com/gtank/cryptopasta
+func Encrypt(plaintext []byte, key *[32]byte) ([]byte, error) {
+	block, err := aes.NewCipher(key[:])
+	if err != nil {
+		return nil, err
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+
+	nonce := make([]byte, gcm.NonceSize())
+	_, err = io.ReadFull(rand.Reader, nonce)
+	if err != nil {
+		return nil, err
+	}
+
+	return gcm.Seal(nonce, nonce, plaintext, nil), nil
+}
+
 //Add the retrieved events for a given feed to the atom feed structure
 func addItemsToFeed(feed *atom.Feed, events []atomdata.TimestampedEvent, linkhostport, proto string) {
 
 	for _, event := range events {
 
-		//Here we can type assert without a check because the event array passed to this method
-		//was scanned from a driver.Value, which constrings the types that can be scanned and
-		//can convert those into []byte (or error out on the rows.Scan
-		payload := event.Payload.([]byte)
-
-		encodedPayload := base64.StdEncoding.EncodeToString(payload)
+		encodedPayload := base64.StdEncoding.EncodeToString(event.Payload.([]byte))
 
 		content := &atom.Text{
 			Type: event.TypeCode,
@@ -71,6 +142,7 @@ func addItemsToFeed(feed *atom.Feed, events []atomdata.TimestampedEvent, linkhos
 		feed.Entry = append(feed.Entry, entry)
 
 	}
+
 }
 
 //Configure where telemery data does. Currently this can be send via UDP to a listener, or can be buffered
@@ -111,6 +183,51 @@ func logTimingStats(svc string, start time.Time, err error) {
 			metrics.IncrCounter(key, 1)
 		}
 	}(svc, duration, err)
+}
+
+//Encrypt output encrypts the output is indicated by the configuration settings, e.g.
+//KEY_ALIAS set to something. Here we obtain the encryption key from KMS, and append the
+//encrypted version of the key to the encoded output.
+func encryptOutput(svc *kms.KMS, out []byte) ([]byte, error) {
+	keyAlias := KeyAliasRoot + os.Getenv(KeyAlias)
+	if keyAlias == KeyAliasRoot {
+		return out, nil
+	}
+
+	//Get the encryption keys
+	params := &kms.GenerateDataKeyInput{
+		KeyId:   aws.String(keyAlias), // Required
+		KeySpec: aws.String("AES_256"),
+	}
+
+	resp, err := svc.GenerateDataKey(params)
+	if err != nil {
+		return nil, err
+	}
+
+	key := [32]byte{}
+	copy(key[:], resp.Plaintext[0:32])
+
+	//Encrypt the output
+	encrypted, err := Encrypt(out, &key)
+	if err != nil {
+		return nil, err
+	}
+
+	//Purge the key from memory
+	key = [32]byte{}
+	resp.Plaintext = nil
+
+	//Encode the output
+	encodedOut := base64.StdEncoding.EncodeToString(encrypted)
+
+	//Encode the encryptedKey - this will have to be decrypted using the KMS
+	//CMK before the payload can be decrypted with it
+	encodedKey := base64.StdEncoding.EncodeToString(resp.CiphertextBlob)
+
+	keyPlusText := fmt.Sprintf("%s::%s", encodedKey, encodedOut)
+
+	return []byte(keyPlusText), nil
 }
 
 //NewRecentHandler instantiates the handler for retrieve recent notifications, which are those that have not
@@ -183,9 +300,16 @@ func NewRecentHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWri
 			return
 		}
 
+		encodedOut, err := encryptOutput(kmsSvc, out)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			logTimingStats(svc, start, err)
+			return
+		}
+
 		rw.Header().Add("Cache-Control", "no-store")
 		rw.Header().Add("Content-Type", "application/atom+xml")
-		rw.Write(out)
+		rw.Write(encodedOut)
 		logTimingStats(svc, start, nil)
 	}, nil
 }
@@ -291,6 +415,13 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 			return
 		}
 
+		encodedOut, err := encryptOutput(kmsSvc, out)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			logTimingStats(svc, start, err)
+			return
+		}
+
 		//For all feeds except recent, we can indicate the page can be cached for a long time,
 		//e.g. 30 days. The recent page is mutable so we don't indicate caching for it. We could
 		//potentially attempt to load it from this method via link traversal.
@@ -303,7 +434,7 @@ func NewArchiveHandler(db *sql.DB, linkhostport string) (func(rw http.ResponseWr
 		}
 
 		rw.Header().Add("Content-Type", "application/atom+xml")
-		rw.Write(out)
+		rw.Write(encodedOut)
 
 		logTimingStats(svc, start, nil)
 
@@ -361,12 +492,23 @@ func NewEventRetrieveHandler(db *sql.DB) (func(rw http.ResponseWriter, req *http
 			return
 		}
 
+		encodedOut, err := encryptOutput(kmsSvc, marshalled)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			logTimingStats(svc, start, err)
+			return
+		}
+
 		rw.Header().Add("Content-Type", "application/xml")
 		rw.Header().Add("ETag", fmt.Sprintf("%s:%d", aggregateID, version))
 		rw.Header().Add("Cache-Control", "max-age=2592000")
 
-		rw.Write(marshalled)
+		rw.Write(encodedOut)
 		logTimingStats(svc, start, nil)
 
 	}, nil
+}
+
+func PingHandler(rw http.ResponseWriter, req *http.Request) {
+	rw.WriteHeader(http.StatusOK)
 }
