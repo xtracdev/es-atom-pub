@@ -29,6 +29,7 @@ var ErrBadDBConnection = errors.New("Nil db passed to factory method")
 //URIs assumed by handlers - these are fixed as they embed references relative to the URIs
 //used in this package
 const (
+	PingURI                = "/ping"
 	RecentHandlerURI       = "/notifications/recent"
 	ArchiveHandlerURI      = "/notifications/{feedId}"
 	RetrieveEventHanderURI = "/events/{aggregateId}/{version}"
@@ -506,4 +507,8 @@ func NewEventRetrieveHandler(db *sql.DB) (func(rw http.ResponseWriter, req *http
 		logTimingStats(svc, start, nil)
 
 	}, nil
+}
+
+func PingHandler(rw http.ResponseWriter, req *http.Request) {
+	rw.WriteHeader(http.StatusOK)
 }

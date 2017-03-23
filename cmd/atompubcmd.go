@@ -146,6 +146,7 @@ func main() {
 	r.HandleFunc(atompub.RecentHandlerURI, recentHandler)
 	r.HandleFunc(atompub.ArchiveHandlerURI, archiveHandler)
 	r.HandleFunc(atompub.RetrieveEventHanderURI, retrieveHandler)
+	r.HandleFunc(atompub.PingURI, atompub.PingHandler)
 
 	var server *http.Server
 
