@@ -11,6 +11,7 @@ import (
 	"github.com/xtracdev/oraconn"
 	"net/http"
 	"os"
+	"strings"
 )
 
 var insecureConfigBanner = `
@@ -22,6 +23,18 @@ var insecureConfigBanner = `
 |  | |  |\   | .----)   |   |  |____ |   ----.|   --'  | |  |\  \----.|  |____
 |__| |__| \__| |_______/    |_______| \______| \______/  | _| '._____||_______|
  `
+
+func init() {
+	log.Info("Dumping environment...")
+	for _, e := range os.Environ() {
+		pair := strings.Split(e, "=")
+		if strings.Contains(strings.ToLower(pair[0]), "pass") {
+			log.Info(fmt.Sprintf("%s=XXXXXX", pair[0]))
+		} else {
+			log.Info(e)
+		}
+	}
+}
 
 type atomFeedPubConfig struct {
 	linkhost              string
