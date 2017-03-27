@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"net/url"
+	"crypto/tls"
 )
 
 //Decrypt from cryptopasta commit bc3a108a5776376aa811eea34b93383837994340
@@ -39,7 +41,24 @@ func Decrypt(ciphertext []byte, key *[32]byte) (plaintext []byte, err error) {
 }
 
 func readRecent(feedUrl string) ([]byte, error) {
-	resp, err := http.Get(feedUrl)
+
+	parsed,err := url.Parse(feedUrl)
+	if err != nil {
+		return nil, err
+	}
+
+	client := http.DefaultClient
+	if parsed.Scheme == "https" {
+		tr := http.DefaultTransport
+		defTransAsTransPort, ok := tr.(*http.Transport)
+		if !ok {
+			return nil, errors.New("Unable to coerce default transport to transport type")
+		}
+		defTransAsTransPort.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		client = &http.Client{Transport: tr}
+	}
+
+	resp, err := client.Get(feedUrl)
 	if err != nil {
 		return nil, err
 	}
@@ -52,6 +71,7 @@ func readRecent(feedUrl string) ([]byte, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		fmt.Println(resp)
 		return nil, errors.New("Status was not ok")
 	}
 
@@ -98,7 +118,12 @@ func main() {
 	}
 
 	//KMS set up
-	sess := session.Must(session.NewSession())
+	sess, err := session.NewSession()
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+
 	svc := kms.New(sess)
 
 	feedUrl := os.Args[1] + "/notifications/recent"
