@@ -144,7 +144,7 @@ func addItemsToFeed(feed *atom.Feed, events []atomdata.TimestampedEvent, linkhos
 
 		link := atom.Link{
 			Rel:  "self",
-			Href: fmt.Sprintf("%s://%s/notifications/%s/%d", proto, linkhostport, event.Source, event.Version),
+			Href: fmt.Sprintf("%s://%s/events/%s/%d", proto, linkhostport, event.Source, event.Version),
 		}
 
 		entry.Link = append(entry.Link, link)
