@@ -131,7 +131,7 @@ func init() {
 	And(`^the next link relationship is recent$`, func() {
 		next := getLink("next-archive", &feed)
 		if assert.NotNil(T, next) {
-			assert.Equal(T, "http://server:12345/notifications/recent", *next)
+			assert.Equal(T, "https://server:12345/notifications/recent", *next)
 		}
 	})
 
@@ -249,7 +249,7 @@ func init() {
 		if assert.Nil(T, err) && assert.True(T, prevfeed.Valid) {
 			prev := getLink("prev-archive", &feed)
 			if assert.NotNil(T, prev) {
-				assert.Equal(T, fmt.Sprintf("http://server:12345/notifications/%s", prevfeed.String), *prev)
+				assert.Equal(T, fmt.Sprintf("https://server:12345/notifications/%s", prevfeed.String), *prev)
 			}
 
 		}
@@ -260,7 +260,7 @@ func init() {
 		if assert.Nil(T, err) && assert.True(T, nextfeed.Valid) {
 			next := getLink("next-archive", &feed)
 			if assert.NotNil(T, next) {
-				assert.Equal(T, fmt.Sprintf("http://server:12345/notifications/%s", nextfeed.String), *next)
+				assert.Equal(T, fmt.Sprintf("https://server:12345/notifications/%s", nextfeed.String), *next)
 			}
 
 		}
